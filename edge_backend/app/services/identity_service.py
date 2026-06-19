@@ -39,14 +39,27 @@ def are_paths_related(path1: str, path2: str) -> bool:
 
 def get_identity_subjects(db: Session) -> List[Dict[str, Any]]:
     """Agrupa y correlaciona hallazgos para construir perfiles de sujetos (Ley 21.719) en memoria, O(N)."""
-    # 1. Obtener todos los hallazgos (incluyendo resueltos, un titular sigue siendo titular)
-    all_findings = db.query(ScanFinding).all()
+    # 1. Subconsulta para obtener las rutas que tienen al menos un RUT
+    subquery = db.query(ScanFinding.file_path).filter(
+        ScanFinding.entity_type == "CHILE_RUT"
+    ).distinct().subquery()
     
-    findings_by_group: Dict[str, List[ScanFinding]] = {}
-    rut_findings_by_group: Dict[str, List[ScanFinding]] = {}
+    # 2. Consultar solo las columnas necesarias uniendo con la subconsulta
+    results = db.query(
+        ScanFinding.id,
+        ScanFinding.file_path,
+        ScanFinding.entity_type,
+        ScanFinding.detected_text,
+        ScanFinding.is_sensitive
+    ).join(
+        subquery,
+        ScanFinding.file_path == subquery.c.file_path
+    ).all()
     
-    for f in all_findings:
-        f_path = f.file_path
+    findings_by_group: Dict[str, List[tuple]] = {}
+    rut_findings_by_group: Dict[str, List[tuple]] = {}
+    
+    for f_id, f_path, f_entity_type, f_detected_text, f_is_sensitive in results:
         if not f_path:
             continue
             
@@ -62,22 +75,24 @@ def get_identity_subjects(db: Session) -> List[Dict[str, Any]]:
         else:
             group_key = f_path
             
+        f_tuple = (f_id, f_path, f_entity_type, f_detected_text, f_is_sensitive)
+        
         if group_key not in findings_by_group:
             findings_by_group[group_key] = []
-        findings_by_group[group_key].append(f)
+        findings_by_group[group_key].append(f_tuple)
         
-        if f.entity_type == "CHILE_RUT":
+        if f_entity_type == "CHILE_RUT":
             if group_key not in rut_findings_by_group:
                 rut_findings_by_group[group_key] = []
-            rut_findings_by_group[group_key].append(f)
+            rut_findings_by_group[group_key].append(f_tuple)
             
     subjects: Dict[str, Dict[str, Any]] = {}
     
     # 2. Correlacionar hallazgos del mismo grupo
     for group_key, rufs in rut_findings_by_group.items():
         group_findings = findings_by_group.get(group_key, [])
-        for rf in rufs:
-            rut_val = crypto_service.decrypt(rf.detected_text) if rf.is_sensitive else rf.detected_text
+        for rf_id, rf_path, rf_entity_type, rf_detected_text, rf_is_sensitive in rufs:
+            rut_val = crypto_service.decrypt(rf_detected_text) if rf_is_sensitive else rf_detected_text
             if not rut_val:
                 continue
                 
@@ -98,37 +113,37 @@ def get_identity_subjects(db: Session) -> List[Dict[str, Any]]:
                     "findings_ids": []
                 }
                 
-            subjects[norm_rut]["files"].add(rf.file_path)
-            if rf.id not in subjects[norm_rut]["findings_ids"]:
-                subjects[norm_rut]["findings_ids"].append(rf.id)
+            subjects[norm_rut]["files"].add(rf_path)
+            if rf_id not in subjects[norm_rut]["findings_ids"]:
+                subjects[norm_rut]["findings_ids"].append(rf_id)
                 subjects[norm_rut]["findings_count"] += 1
-            if rf.is_sensitive:
+            if rf_is_sensitive:
                 subjects[norm_rut]["risk_level"] = "ALTO"
                 
-            for gf in group_findings:
-                decrypted = crypto_service.decrypt(gf.detected_text) if gf.is_sensitive else gf.detected_text
+            for gf_id, gf_path, gf_entity_type, gf_detected_text, gf_is_sensitive in group_findings:
+                decrypted = crypto_service.decrypt(gf_detected_text) if gf_is_sensitive else gf_detected_text
                 if not decrypted:
                     continue
                     
-                if gf.entity_type == "PERSON":
+                if gf_entity_type == "PERSON":
                     if len(decrypted.strip()) > 3:
                         subjects[norm_rut]["names"].add(decrypted.strip())
-                elif gf.entity_type == "EMAIL_ADDRESS":
+                elif gf_entity_type == "EMAIL_ADDRESS":
                     subjects[norm_rut]["emails"].add(decrypted.strip().lower())
-                elif gf.entity_type == "PHONE_NUMBER":
+                elif gf_entity_type == "PHONE_NUMBER":
                     subjects[norm_rut]["phones"].add(decrypted.strip())
-                elif gf.entity_type == "DATE_TIME":
+                elif gf_entity_type == "DATE_TIME":
                     subjects[norm_rut]["birth_dates"].add(decrypted.strip())
                     
-                if gf.is_sensitive or gf.entity_type in ["DATA_SALUD", "DATA_SEXUALIDAD", "DATA_POLITICA", "DATA_RELIGION", "DATA_ETNIA"]:
+                if gf_is_sensitive or gf_entity_type in ["DATA_SALUD", "DATA_SEXUALIDAD", "DATA_POLITICA", "DATA_RELIGION", "DATA_ETNIA"]:
                     subjects[norm_rut]["risk_level"] = "ALTO"
                     
-                if gf.id not in subjects[norm_rut]["findings_ids"]:
-                    subjects[norm_rut]["findings_ids"].append(gf.id)
+                if gf_id not in subjects[norm_rut]["findings_ids"]:
+                    subjects[norm_rut]["findings_ids"].append(gf_id)
                     subjects[norm_rut]["findings_count"] += 1
 
     # 3. Formatear resultados para retorno JSON
-    results = []
+    results_list = []
     for norm_rut, sub in subjects.items():
         display_files = []
         for f in sub["files"]:
@@ -141,7 +156,7 @@ def get_identity_subjects(db: Session) -> List[Dict[str, Any]]:
             else:
                 display_files.append(os.path.basename(f))
                 
-        results.append({
+        results_list.append({
             "rut": sub["rut"],
             "names": list(sub["names"]),
             "emails": list(sub["emails"]),
@@ -153,4 +168,4 @@ def get_identity_subjects(db: Session) -> List[Dict[str, Any]]:
             "findings_count": sub["findings_count"]
         })
         
-    return results
+    return results_list

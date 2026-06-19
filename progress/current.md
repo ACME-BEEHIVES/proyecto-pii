@@ -1,32 +1,20 @@
 # Estado de Sesión Actual
 
-**Session ID:** 2026-06-19-002
+**Session ID:** 2026-06-19-003
 **Operador:** Antigravity
-**Tarea activa:** Remediación y Censura In-Situ en UI
+**Tarea activa:** Optimización de Consulta del Gráfico de Identidad (Sujetos PII)
 **Estado de la tarea:** done
 **Sub-paso actual:** Cierre de sesión y preparación para entrega.
 
 ## Decisiones Tomadas
-- Se implementó la interfaz visual completa para las acciones destructivas de remediación de archivos: **Censurar In-Situ** y **Mover a Cuarentena**.
-- Se añadieron botones estilizados siguiendo el sistema de diseño MUI v6 y la guía de diseño en `docs/UI_GUIDE_V1.md`.
-- Se crearon componentes de diálogo modal (`Dialog`) para evitar disparos accidentales de acciones de remediación destructivas.
-- Se enlazaron las peticiones de los botones a los servicios `api.redactInPlace` y `api.quarantineFile`.
-- Se garantizó la recarga dinámica de la lista de hallazgos del titular y la actualización del historial de remediaciones en la sesión.
-- Se resolvieron advertencias pasadas de ESLint en `Dashboard.tsx` relativas a asignaciones inútiles (`no-useless-assignment`).
-- Se corrigió un bug crítico de sobrecarga de memoria/red en la búsqueda de censura, excluyendo las celdas de bases de datos (`~ScanFinding.file_path.like("db://%")`) para devolver únicamente archivos físicos. Esto redujo el listado de 21,200 a 207 elementos y solucionó el error de red en el navegador.
-- Se sustituyeron las imágenes de marca en el frontend (`logo_light.svg` y `logo_dark.svg`) con los gráficos vectoriales oficiales copiados desde la ruta local de UpShield Final especificada por el usuario. Posteriormente se corrigió la distorsión visual en `logo_light.svg` restaurando la clase de sombreado/borde `.cls-5` a su color original `#ededed` para evitar letras hinchadas/ilegibles.
-- Se forzó la reconstrucción sin caché del contenedor del frontend Docker para asegurar la adopción de los nuevos logos.
-- Se optimizó el endpoint de estadísticas del dashboard (`findings/stats`) realizando la agregación y conteo de rutas directo en base de datos (SQL) con `group_by`, evitando la sobrecarga de traer 20,000+ registros a memoria de Python y logrando cargas instantáneas.
-- Se solucionó el bloqueo crítico del escáner en 0% (CPU al 394%) debido a un bug de OpenMP en Tesseract 5.5.0 bajo Alpine Linux: se forzó la ejecución monohilo mediante las variables de entorno `OMP_THREAD_LIMIT=1` y `OMP_NUM_THREADS=1` en `docker-compose.yml`.
-- Se verificó la consistencia y corrección de la compilación de producción (`npm run build` exitoso), el linter (`npm run lint` green), y las pruebas unitarias de backend (`pytest` exitoso).
+- Se optimizó la consulta de base de datos en `identity_service.py` (`get_identity_subjects`) aplicando una subconsulta con `distinct` y un `JOIN` para filtrar únicamente los hallazgos de archivos o bases de datos que contienen al menos un hallazgo de tipo `CHILE_RUT`.
+- Se reemplazó la consulta completa del modelo ORM `ScanFinding` por una consulta específica de columnas (`id`, `file_path`, `entity_type`, `detected_text`, `is_sensitive`) devueltas como tuplas en memoria.
+- Esto redujo el conjunto de registros cargados en memoria de 147,830 a 28,440 filas, y eliminó la sobrecarga de instanciación ORM de SQLAlchemy.
+- El tiempo total de procesamiento en el backend local se redujo de **8.98 segundos a 1.85 segundos** (una mejora de ~5x).
+- Se ejecutó `docker compose restart edge-backend` para aplicar los cambios en el contenedor Docker.
+- Se verificó la consistencia mediante las 34 pruebas unitarias de backend con éxito.
 
 ## Archivos Modificados / Creados
-- [Redaction.tsx](file:///c:/Users/PabloOrtizCollados/Desktop/proyecto-pii/edge_frontend/src/pages/Redaction.tsx) [MODIFY]
-- [Dashboard.tsx](file:///c:/Users/PabloOrtizCollados/Desktop/proyecto-pii/edge_frontend/src/pages/Dashboard.tsx) [MODIFY]
-- [redaction.py](file:///c:/Users/PabloOrtizCollados/Desktop/proyecto-pii/edge_backend/app/routers/redaction.py) [MODIFY]
-- [logo_light.svg](file:///c:/Users/PabloOrtizCollados/Desktop/proyecto-pii/edge_frontend/public/logo_light.svg) [MODIFY]
-- [logo_dark.svg](file:///c:/Users/PabloOrtizCollados/Desktop/proyecto-pii/edge_frontend/public/logo_dark.svg) [MODIFY]
-- [findings.py](file:///c:/Users/PabloOrtizCollados/Desktop/proyecto-pii/edge_backend/app/routers/findings.py) [MODIFY]
-- [docker-compose.yml](file:///c:/Users/PabloOrtizCollados/Desktop/proyecto-pii/docker-compose.yml) [MODIFY]
+- [identity_service.py](file:///c:/Users/PabloOrtizCollados/Desktop/proyecto-pii/edge_backend/app/services/identity_service.py) [MODIFY]
 - [progress/current.md](file:///c:/Users/PabloOrtizCollados/Desktop/proyecto-pii/progress/current.md) [MODIFY]
 - [progress/history.md](file:///c:/Users/PabloOrtizCollados/Desktop/proyecto-pii/progress/history.md) [MODIFY]
