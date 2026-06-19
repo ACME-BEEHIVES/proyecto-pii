@@ -14,7 +14,7 @@
 - Se garantizó la recarga dinámica de la lista de hallazgos del titular y la actualización del historial de remediaciones en la sesión.
 - Se resolvieron advertencias pasadas de ESLint en `Dashboard.tsx` relativas a asignaciones inútiles (`no-useless-assignment`).
 - Se corrigió un bug crítico de sobrecarga de memoria/red en la búsqueda de censura, excluyendo las celdas de bases de datos (`~ScanFinding.file_path.like("db://%")`) para devolver únicamente archivos físicos. Esto redujo el listado de 21,200 a 207 elementos y solucionó el error de red en el navegador.
-- Se sustituyeron las imágenes de marca en el frontend (`logo_light.svg` y `logo_dark.svg`) con los gráficos vectoriales oficiales copiados desde la ruta local de UpShield Final especificada por el usuario.
+- Se sustituyeron las imágenes de marca en el frontend (`logo_light.svg` y `logo_dark.svg`) con los gráficos vectoriales oficiales copiados desde la ruta local de UpShield Final especificada por el usuario. Posteriormente se corrigió la distorsión visual en `logo_light.svg` restaurando la clase de sombreado/borde `.cls-5` a su color original `#ededed` para evitar letras hinchadas/ilegibles.
 - Se forzó la reconstrucción sin caché del contenedor del frontend Docker para asegurar la adopción de los nuevos logos.
 - Se verificó la consistencia y corrección de la compilación de producción (`npm run build` exitoso), el linter (`npm run lint` green), y las pruebas unitarias de backend (`pytest` exitoso).
 
