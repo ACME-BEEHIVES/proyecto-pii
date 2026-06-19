@@ -25,10 +25,11 @@ def search_files_for_redaction(q: str = Query(..., min_length=2, description="Bu
     q_stripped = q.strip()
     q_norm = _normalize_rut(q_stripped)
     
-    # 1. Buscar hallazgos no cifrados que coincidan
+    # 1. Buscar hallazgos no cifrados de archivos que coincidan (excluyendo bases de datos)
     findings = db.query(ScanFinding).filter(
         ScanFinding.is_sensitive == False,
-        ScanFinding.detected_text.isnot(None)
+        ScanFinding.detected_text.isnot(None),
+        ~ScanFinding.file_path.like("db://%")
     ).all()
     
     matched_file_paths: dict[str, list[dict]] = {}
