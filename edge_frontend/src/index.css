@@ -1,0 +1,62 @@
+/* UpShield Edge Agent — Global Styles */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+:root {
+  /* Sidebar tokens */
+  --sidebar-bg-color: #343A40;
+  --sidebar-text-color: #CED4DA;
+  --sidebar-width: 280px;
+  --sidebar-collapsed-width: 64px;
+
+  /* Content tokens */
+  --content-bg-color: #F8F9FA;
+  --header-bg-color: #FFFFFF;
+
+  /* Primary color for active states */
+  --primary-color: #007BFF;
+}
+
+body {
+  margin: 0;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: var(--content-bg-color);
+  color: #343A40;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.25);
+}
+
+/* Smooth transitions for interactive elements */
+a,
+button {
+  transition: all 0.2s ease;
+}
+
+/* Remove default focus outline and replace with accessible one */
+:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 2px;
+}

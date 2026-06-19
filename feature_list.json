@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "last_updated": "2026-06-04",
+  "notes": "UpShield Edge Agent — Motor PII Discovery con UI visual. Una sola tarea in_progress a la vez.",
+  "features": [
+    {
+      "id": "FEAT-001",
+      "title": "Harness + Scaffolding del Proyecto",
+      "status": "done",
+      "priority": "critical",
+      "estimated_complexity": "M",
+      "description": "Instalar el harness (AGENTS.md, CHECKPOINTS.md, feature_list.json, init.ps1, progress/) y crear la estructura base de carpetas para edge_backend (FastAPI) y edge_frontend (React/Vite/MUI). Crear docs/UI_GUIDE_V1.md basada en UpShield Final.",
+      "files_affected_estimate": ["AGENTS.md", "CHECKPOINTS.md", "feature_list.json", "init.ps1", "progress/", "docs/UI_GUIDE_V1.md", "edge_backend/", "edge_frontend/"],
+      "domain_rules_relevant": [],
+      "checkpoints_to_pass": ["CHK-GLOB-005", "CHK-GLOB-006"],
+      "blocked_by": null,
+      "last_session": "2026-06-04-001"
+    },
+    {
+      "id": "FEAT-002",
+      "title": "Modelos SQLAlchemy + Migracion Inicial",
+      "status": "done",
+      "priority": "critical",
+      "estimated_complexity": "M",
+      "description": "Crear modelos SQLAlchemy para ScanFinding, FileControl, ScanJob y ScanConfig. Migración Alembic para crear las 4 tablas. Preservar compatibilidad con datos existentes en hallazgos y control_archivos.",
+      "files_affected_estimate": ["edge_backend/app/models/", "edge_backend/alembic/versions/"],
+      "domain_rules_relevant": ["Datos sensibles se cifran con Fernet AES-256", "Hash MD5 para control incremental"],
+      "checkpoints_to_pass": ["CHK-GLOB-001", "CHK-MIG-001"],
+      "blocked_by": "FEAT-001",
+      "last_session": null
+    },
+    {
+      "id": "FEAT-003",
+      "title": "Backend — Servicios Core (Escaneo + Cifrado)",
+      "status": "done",
+      "priority": "critical",
+      "estimated_complexity": "L",
+      "description": "Adaptar motor_pii_v4_incremental.py a servicios FastAPI: tika_service, presidio_service, crypto_service, scan_engine. Routers para scan y findings con paginación.",
+      "files_affected_estimate": ["edge_backend/app/services/", "edge_backend/app/routers/scan.py", "edge_backend/app/routers/findings.py", "edge_backend/app/schemas/"],
+      "domain_rules_relevant": ["Entidades sensibles: DATA_SALUD, DATA_ETNIA, DATA_POLITICA, DATA_RELIGION, DATA_SEXUALIDAD", "Score >= 0.5 para guardar hallazgo", "Escaneo incremental por hash MD5", "Llave maestra desde env var, no hardcodeada"],
+      "checkpoints_to_pass": ["CHK-GLOB-001", "CHK-PII-001", "CHK-PII-002"],
+      "blocked_by": "FEAT-002",
+      "last_session": "2026-06-04-002"
+    },
+    {
+      "id": "FEAT-004",
+      "title": "Backend — Config Dinamica + DSAR + Health + Redaction",
+      "status": "done",
+      "priority": "high",
+      "estimated_complexity": "L",
+      "description": "Configuración dinámica de rutas de escaneo desde UI. API DSAR integrada para mapeo por RUT. Health checks para Tika/Presidio. Motor de censura para generar copias con datos ofuscados.",
+      "files_affected_estimate": ["edge_backend/app/routers/config.py", "edge_backend/app/routers/dsar.py", "edge_backend/app/routers/health.py", "edge_backend/app/routers/redaction.py", "edge_backend/app/services/redaction_service.py"],
+      "domain_rules_relevant": ["Descifrado al vuelo solo en API DSAR", "Validar rutas de red antes de guardar", "Health check antes de escaneo"],
+      "checkpoints_to_pass": ["CHK-GLOB-001", "CHK-PII-002", "CHK-PII-003"],
+      "blocked_by": "FEAT-003",
+      "last_session": "2026-06-04-003"
+    },
+    {
+      "id": "FEAT-005",
+      "title": "Backend — Sincronizacion con UpShield Central",
+      "status": "done",
+      "priority": "high",
+      "estimated_complexity": "M",
+      "description": "Cliente HTTP para reportar hallazgos, estado de escaneo y heartbeat a la plataforma UpShield central. Autenticación via API key. Operación offline-first con retry y backoff.",
+      "files_affected_estimate": ["edge_backend/app/services/upshield_sync.py"],
+      "domain_rules_relevant": ["API key desde env var UPSHIELD_API_KEY", "Offline-first: retry con backoff si la nube no responde"],
+      "checkpoints_to_pass": ["CHK-GLOB-001"],
+      "blocked_by": "FEAT-004",
+      "last_session": "2026-06-04-004"
+    },
+    {
+      "id": "FEAT-006",
+      "title": "Frontend — Layout + Dashboard + UI Completa",
+      "status": "done",
+      "priority": "critical",
+      "estimated_complexity": "XL",
+      "description": "Interfaz visual completa del Edge Agent: EdgeLayout (sidebar+header), Dashboard con KPIs y graficos, vista de Hallazgos con DataGrid, Configuración de escaneo, Búsqueda DSAR, Motor de censura visual. Componentes: KpiCard, RiskChart, TrendChart, FindingsTable, PiiRiskBadge, PiiEntityIcon, ScanStatusCard, ServiceHealth.",
+      "files_affected_estimate": ["edge_frontend/src/pages/", "edge_frontend/src/components/", "edge_frontend/src/services/", "edge_frontend/src/App.tsx"],
+      "domain_rules_relevant": ["Seguir docs/UI_GUIDE_V1.md", "Tema MUI identico a UpShield Final", "Responsive en breakpoints MUI", "Sidebar dark colapsable 280px/64px"],
+      "checkpoints_to_pass": ["CHK-GLOB-002", "CHK-GLOB-003", "CHK-UI-001", "CHK-UI-002", "CHK-UI-003"],
+      "blocked_by": "FEAT-003",
+      "last_session": "2026-06-04-005"
+    },
+    {
+      "id": "FEAT-007",
+      "title": "Docker Compose Unificado + Deployment",
+      "status": "done",
+      "priority": "high",
+      "estimated_complexity": "M",
+      "description": "Ampliar docker-compose.yml para incluir edge-backend y edge-frontend. Dockerfiles multi-stage. Nginx como proxy inverso para el frontend.",
+      "files_affected_estimate": ["docker-compose.yml", "edge_backend/Dockerfile", "edge_frontend/Dockerfile", "edge_frontend/nginx.conf"],
+      "domain_rules_relevant": ["Tika en :9998", "Presidio en :5001", "Backend en :8001", "Frontend en :3000"],
+      "checkpoints_to_pass": ["CHK-PII-003"],
+      "blocked_by": "FEAT-006",
+      "last_session": "2026-06-04-005"
+    }
+  ]
+}

@@ -1,0 +1,65 @@
+services:
+  tika:
+    image: apache/tika:latest-full
+    container_name: proyecto-pii-tika-1
+    ports:
+      - "9998:9998"
+    environment:
+      - TIKA_CHILD_JAVA_OPTS=-Xmx2g
+    restart: always
+
+  presidio-analyzer:
+    image: mcr.microsoft.com/presidio-analyzer:latest
+    container_name: proyecto-pii-presidio-analyzer-1
+    user: root
+    ports:
+      - "5001:3000"
+    volumes:
+      - ./analyzer.yaml:/app/analyzer.yaml
+      - ./nlp_config.yaml:/app/nlp_config.yaml
+      - ./registry.yaml:/app/registry.yaml
+    environment:
+      - ANALYZER_CONF_FILE=/app/analyzer.yaml
+      - NLP_CONF_FILE=/app/nlp_config.yaml
+      - RECOGNIZER_REGISTRY_CONF_FILE=/app/registry.yaml
+    command: >
+      sh -c "python -m spacy download es_core_news_lg && python app.py"
+    restart: always
+
+  edge-backend:
+    build:
+      context: ./edge_backend
+      dockerfile: Dockerfile
+    container_name: proyecto-pii-edge-backend-1
+    ports:
+      - "8001:8001"
+    depends_on:
+      - tika
+      - presidio-analyzer
+    env_file:
+      - ./edge_backend/.env
+    environment:
+      - TZ=America/Santiago
+      - TIKA_URL=http://tika:9998/tika
+      - PRESIDIO_URL=http://presidio-analyzer:3000/analyze
+      - PRESIDIO_HEALTH_URL=http://presidio-analyzer:3000/health
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./edge_backend:/app
+      - ./CARPETA_PRUEBA_MASIVA:/app/CARPETA_PRUEBA_MASIVA
+      - ./RRHH:/app/RRHH
+      - ./Contratos_2025:/app/Contratos_2025
+      - C:/Users/PabloOrtizCollados/Desktop/Archivos Prueba PII:/Archivos_Prueba_PII
+    restart: always
+
+  edge-frontend:
+    build:
+      context: ./edge_frontend
+      dockerfile: Dockerfile
+    container_name: proyecto-pii-edge-frontend-1
+    ports:
+      - "3000:3000"
+    depends_on:
+      - edge-backend
+    restart: always

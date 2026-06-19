@@ -1,0 +1,31 @@
+nlp_engine_name: spacy
+models:
+  - lang_code: en
+    model_name: en_core_web_lg
+  - lang_code: es
+    model_name: es_core_news_lg
+
+# =====================================================================
+# FASE 2 (OPCIÓN EVOLUTIVA - CONFIGURACIÓN PARA MODELO TRANSFORMER / AI)
+# =====================================================================
+# Si un cliente requiere escaneo de alta precisión mediante Deep Learning
+# en español, realizar los siguientes pasos:
+#
+# 1. En docker-compose.yml:
+#    - Cambiar el comando del presidio-analyzer para instalar dependencias de transformers:
+#      command: sh -c "pip install spacy-transformers && python -m spacy download es_dep_news_trf && python app.py"
+# 2. En este archivo (nlp_config.yaml):
+#    - Descomentar la configuración de abajo y comentar la sección superior:
+#
+# nlp_engine_name: spacy
+# models:
+#   - lang_code: es
+#     model_name: es_dep_news_trf
+#
+# 3. Alternativamente, usar un modelo nativo de Hugging Face (requiere presidio-analyzer con transformers plugin):
+#
+# nlp_engine_name: transformers
+# models:
+#   - lang_code: es
+#     model_name: sayula/bert-base-spanish-cased-ner  # O modelo custom entrenado
+

@@ -1,0 +1,24 @@
+supported_languages:
+  - "en"
+  - "es"
+recognizers:
+  - name: "Chilean RUT Recognizer"
+    supported_language: "es"
+    supported_entity: "CHILE_RUT"
+    patterns:
+      - name: "rut"
+        regex: '\b(\d{1,2}(?:\.?\d{3}){2}-[\dkK])\b'
+        score: 0.8
+
+# =====================================================================
+# FASE 2 (OPCIÓN EVOLUTIVA - RECONOCEDORES CUSTOM / DEEP LEARNING)
+# =====================================================================
+# Si se entrena un modelo NER custom y se monta en Presidio Analyzer,
+# se pueden registrar aquí mapeos de entidades adicionales (ej. mapear
+# la etiqueta de entidad "DIAG_MED" del modelo a "DATA_SALUD").
+#
+# - name: "Custom Spacy NER Recognizer"
+#   supported_language: "es"
+#   supported_entity: "DATA_SALUD"
+#   # Este reconocedor vincula una etiqueta de entidad detectada por el modelo NER
+#   spacy_entity: "DIAG_MED"
