@@ -43,6 +43,8 @@ services:
       - TIKA_URL=http://tika:9998/tika
       - PRESIDIO_URL=http://presidio-analyzer:3000/analyze
       - PRESIDIO_HEALTH_URL=http://presidio-analyzer:3000/health
+      - OMP_THREAD_LIMIT=1
+      - OMP_NUM_THREADS=1
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:

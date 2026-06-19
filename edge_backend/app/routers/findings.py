@@ -126,8 +126,8 @@ def get_findings_stats(db: Session = Depends(get_db)):
 
     # 6. Agrupación por carpeta/tabla (solo activos)
     findings_by_folder = {}
-    all_findings_paths = db.query(ScanFinding.file_path).filter(ScanFinding.is_resolved == False).all()
-    for (f_path,) in all_findings_paths:
+    by_path_query = db.query(ScanFinding.file_path, func.count(ScanFinding.id)).filter(ScanFinding.is_resolved == False).group_by(ScanFinding.file_path).all()
+    for f_path, count in by_path_query:
         if f_path:
             if f_path.startswith("db://"):
                 parts = f_path.split("/")
@@ -137,7 +137,7 @@ def get_findings_stats(db: Session = Depends(get_db)):
                     dir_name = "/".join(parts[:-1]) or "Base de Datos"
             else:
                 dir_name = os.path.dirname(f_path) or "Raíz"
-            findings_by_folder[dir_name] = findings_by_folder.get(dir_name, 0) + 1
+            findings_by_folder[dir_name] = findings_by_folder.get(dir_name, 0) + count
 
     # 7. Determinar riesgo global
     has_active_sensitive = db.query(ScanFinding).filter(
