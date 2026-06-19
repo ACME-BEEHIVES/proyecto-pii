@@ -258,12 +258,12 @@ def run_scan_async(scan_job_id: int, scan_paths: list[str], extensions: list[str
         # Completar ejecución del Job
         job = db.query(ScanJob).filter(ScanJob.id == scan_job_id).first()
         if job:
+            db.refresh(job)
             if scan_job_id in cancelled_jobs:
                 job.status = "cancelled"
                 cancelled_jobs.discard(scan_job_id)
             else:
                 job.status = "completed"
-            db.refresh(job)
             job.files_total = job.files_scanned + job.files_skipped
             job.completed_at = datetime.utcnow()
             db.commit()
@@ -275,9 +275,9 @@ def run_scan_async(scan_job_id: int, scan_paths: list[str], extensions: list[str
     except Exception as e:
         job = db.query(ScanJob).filter(ScanJob.id == scan_job_id).first()
         if job:
+            db.refresh(job)
             job.status = "failed"
             job.error_message = f"Error crítico en el motor de escaneo: {str(e)}"
-            db.refresh(job)
             job.files_total = job.files_scanned + job.files_skipped
             job.completed_at = datetime.utcnow()
             db.commit()

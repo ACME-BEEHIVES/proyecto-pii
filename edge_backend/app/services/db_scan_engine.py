@@ -426,14 +426,13 @@ def scan_database_connection(db_config_id: int, scan_job_id: int):
         with db_scan_lock:
             job = local_db.query(ScanJob).filter(ScanJob.id == scan_job_id).first()
             if job:
+                local_db.refresh(job)
                 from app.services.scan_engine import cancelled_jobs
                 if scan_job_id in cancelled_jobs:
                     job.status = "cancelled"
                     cancelled_jobs.discard(scan_job_id)
                 else:
                     job.status = "completed"
-                # Refrescar y representar el progreso real de forma consistente
-                local_db.refresh(job)
                 job.files_total = job.files_scanned + job.files_skipped
                 job.completed_at = datetime.utcnow()
                 local_db.commit()
@@ -447,9 +446,9 @@ def scan_database_connection(db_config_id: int, scan_job_id: int):
         with db_scan_lock:
             job = local_db.query(ScanJob).filter(ScanJob.id == scan_job_id).first()
             if job:
+                local_db.refresh(job)
                 job.status = "failed"
                 job.error_message = f"Error crítico: {str(e)}"
-                local_db.refresh(job)
                 job.files_total = job.files_scanned + job.files_skipped
                 job.completed_at = datetime.utcnow()
                 local_db.commit()
