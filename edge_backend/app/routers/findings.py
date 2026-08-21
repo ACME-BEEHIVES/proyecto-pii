@@ -20,12 +20,15 @@ def get_findings(
     is_resolved: Optional[bool] = None,
     file_path: Optional[str] = None,
     is_sensitive: Optional[bool] = None,
+    scan_job_id: Optional[int] = None,
     skip: int = 0,
     limit: int = 50,
     db: Session = Depends(get_db)
 ):
     """Obtiene un listado paginado de hallazgos. No descifra los datos sensibles (cumple CHK-PII-002)."""
     query = db.query(ScanFinding)
+    if scan_job_id is not None:
+        query = query.filter(ScanFinding.scan_job_id == scan_job_id)
     if entity_type:
         query = query.filter(ScanFinding.entity_type == entity_type)
     if is_resolved is not None:
@@ -41,32 +44,21 @@ def get_findings(
         conditions = [
             ScanFinding.file_path.like(f"%{search_term}%"),
             ScanFinding.file_name.like(f"%{search_term}%"),
+            # Buscar en texto enmascarado (no sensible)
             (ScanFinding.is_sensitive == False) & (ScanFinding.detected_text.like(f"%{search_term}%")),
         ]
         
-        # Si parece un RUT (solo dígitos+k), buscar también con formato
-        if normalized_search and len(normalized_search) >= 4:
-            # Buscar el patrón normalizado contra texto detectado de RUTs
-            # Reconstruir posibles formatos: 8565137 -> buscar con LIKE %565137%
-            conditions.append(
-                (ScanFinding.is_sensitive == False) & 
-                (ScanFinding.entity_type == 'CHILE_RUT') &
-                (ScanFinding.detected_text.like(f"%{normalized_search[:-1]}%"))  # sin dígito verificador
-            )
-            # También buscar con puntos si tiene formato parcial
-            if len(normalized_search) >= 7:
-                # Intentar formato X.XXX.XXX
-                digits = normalized_search
-                if len(digits) >= 8:  # e.g. 85651374
-                    body = digits[:-1]  # 8565137
-                    dv = digits[-1]  # 4
-                    # Buscar como X.XXX.XXX-D
-                    if len(body) >= 7:
-                        formatted = f"{body[:-6]}.{body[-6:-3]}.{body[-3:]}-{dv}"
-                        conditions.append(
-                            (ScanFinding.is_sensitive == False) & 
-                            (ScanFinding.detected_text == formatted)
-                        )
+        # Si parece un RUT, buscar por search_hash (búsqueda exacta eficiente)
+        if normalized_search and len(normalized_search) >= 7:
+            rut_hash = crypto_service.compute_search_hash(normalized_search, "CHILE_RUT")
+            if rut_hash:
+                conditions.append(ScanFinding.search_hash == rut_hash)
+
+        # Si parece un email, buscar por search_hash
+        if "@" in search_term:
+            email_hash = crypto_service.compute_search_hash(search_term, "EMAIL_ADDRESS")
+            if email_hash:
+                conditions.append(ScanFinding.search_hash == email_hash)
         
         query = query.filter(or_(*conditions))
 

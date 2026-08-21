@@ -59,6 +59,8 @@ import type { ScanConfig, DbConfig, DbConfigCreate } from '../types';
 
 const ScanConfigPage: React.FC = () => {
   const [config, setConfig] = useState<ScanConfig | null>(null);
+  const [savedConfig, setSavedConfig] = useState<ScanConfig | null>(null);
+  const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [newPath, setNewPath] = useState('');
   const [testResult, setTestResult] = useState<{ path: string; status: 'ok' | 'error'; message?: string } | null>(null);
@@ -137,6 +139,7 @@ const ScanConfigPage: React.FC = () => {
       if (showLoading) setLoading(true);
       const data = await api.getConfig();
       setConfig(data);
+      setSavedConfig(data);
       await loadDbConfigs();
     } catch (e) {
       console.error('Error loading config', e);
@@ -210,16 +213,22 @@ const ScanConfigPage: React.FC = () => {
   const handleSave = async () => {
     if (!config) return;
     try {
+      setSaving(true);
       setSuccessMsg(null);
       const updated = await api.updateConfig(config);
       setConfig(updated);
+      setSavedConfig(updated);
       setSuccessMsg('Configuración guardada exitosamente');
       setTimeout(() => setSuccessMsg(null), 4000);
     } catch (e: any) {
       console.error('Error saving config', e);
       alert(e.response?.data?.detail || 'No se pudo guardar la configuración');
+    } finally {
+      setSaving(false);
     }
   };
+
+  const isDirty = !!config && !!savedConfig && JSON.stringify(config) !== JSON.stringify(savedConfig);
 
   // DB Config Handlers
   const handleOpenDbDialog = (dbConfig?: DbConfig) => {
@@ -523,6 +532,47 @@ const ScanConfigPage: React.FC = () => {
         </Alert>
       )}
 
+      {isDirty && (
+        <Alert
+          severity="warning"
+          variant="filled"
+          sx={{
+            mb: 3,
+            position: 'sticky',
+            top: 8,
+            zIndex: 1100,
+            display: 'flex',
+            alignItems: 'center',
+            boxShadow: 3,
+          }}
+          action={
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              <Button
+                size="small"
+                variant="outlined"
+                sx={{ color: 'inherit', borderColor: 'currentColor' }}
+                onClick={() => config && savedConfig && setConfig(savedConfig)}
+              >
+                Descartar
+              </Button>
+              <Button
+                size="small"
+                variant="contained"
+                color="inherit"
+                sx={{ color: 'warning.dark', fontWeight: 700 }}
+                onClick={handleSave}
+                disabled={saving}
+              >
+                {saving ? <CircularProgress size={16} sx={{ mr: 1 }} /> : null}
+                Guardar Configuración
+              </Button>
+            </Box>
+          }
+        >
+          Tienes cambios sin guardar. Las rutas o ajustes que agregues no se aplicarán hasta que hagas clic en <strong>Guardar Configuración</strong>.
+        </Alert>
+      )}
+
       {config && (
         <Grid container spacing={3}>
           {/* Left panel: Paths & MySQL Database */}
@@ -737,71 +787,7 @@ const ScanConfigPage: React.FC = () => {
               </CardContent>
             </Card>
 
-            {/* Base de Datos MySQL Card */}
-            <Card sx={{ mt: 3 }}>
-              <CardContent sx={{ p: 3 }}>
-                <Typography variant="h6" sx={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 1 }} gutterBottom>
-                  <StorageIcon color="primary" /> Conexión a Base de Datos MySQL
-                </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-                  Modifica los parámetros de conexión de la base de datos local. El agente validará la conexión al guardar.
-                </Typography>
 
-                <Grid container spacing={2}>
-                  <Grid size={{ xs: 12, sm: 8 }}>
-                    <TextField
-                      label="Servidor / Host"
-                      variant="outlined"
-                      fullWidth
-                      size="small"
-                      value={config.db_host || ''}
-                      onChange={(e) => setConfig({ ...config, db_host: e.target.value })}
-                    />
-                  </Grid>
-                  <Grid size={{ xs: 12, sm: 4 }}>
-                    <TextField
-                      label="Puerto"
-                      variant="outlined"
-                      fullWidth
-                      size="small"
-                      value={config.db_port || ''}
-                      onChange={(e) => setConfig({ ...config, db_port: e.target.value })}
-                    />
-                  </Grid>
-                  <Grid size={{ xs: 12, sm: 6 }}>
-                    <TextField
-                      label="Usuario"
-                      variant="outlined"
-                      fullWidth
-                      size="small"
-                      value={config.db_user || ''}
-                      onChange={(e) => setConfig({ ...config, db_user: e.target.value })}
-                    />
-                  </Grid>
-                  <Grid size={{ xs: 12, sm: 6 }}>
-                    <TextField
-                      label="Contraseña"
-                      type="password"
-                      variant="outlined"
-                      fullWidth
-                      size="small"
-                      value={config.db_password || ''}
-                      onChange={(e) => setConfig({ ...config, db_password: e.target.value })}
-                    />
-                  </Grid>
-                  <Grid size={{ xs: 12 }}>
-                    <TextField
-                      label="Nombre de Base de Datos"
-                      variant="outlined"
-                      fullWidth
-                      size="small"
-                      value={config.db_name || ''}
-                      onChange={(e) => setConfig({ ...config, db_name: e.target.value })}
-                    />
-                  </Grid>
-                </Grid>
-              </CardContent>
-            </Card>
 
             {/* Credenciales de UpShield Cloud Card */}
             <Card sx={{ mt: 3 }}>
@@ -1118,10 +1104,11 @@ const ScanConfigPage: React.FC = () => {
             </Card>
 
             <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2, mb: 4 }}>
-              <Button variant="outlined" color="secondary" onClick={() => loadConfig()}>
+              <Button variant="outlined" color="secondary" onClick={() => loadConfig()} disabled={saving}>
                 Reestablecer
               </Button>
-              <Button variant="contained" color="primary" onClick={handleSave}>
+              <Button variant="contained" color="primary" onClick={handleSave} disabled={saving}>
+                {saving ? <CircularProgress size={16} sx={{ mr: 1 }} /> : null}
                 Guardar Configuración
               </Button>
             </Box>

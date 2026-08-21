@@ -74,17 +74,19 @@ def _build_dsar_response(rut_or_email: str, archivos_encontrados: set, db: Sessi
         if nombre_doc not in mapa_datos:
             mapa_datos[nombre_doc] = []
 
-        # Lógica de Descifrado
+        # Lógica de Descifrado / Enmascaramiento
         if fila.is_sensitive:
             alertas_sensibles += 1
             texto_legible = crypto_service.decrypt(texto_guardado)
+            estado = "Cifrado en BD"
         else:
-            texto_legible = texto_guardado
+            texto_legible = texto_guardado  # Ya está enmascarado desde el escaneo
+            estado = "Enmascarado (dato real no almacenado)"
 
         mapa_datos[nombre_doc].append({
             "categoria_legal": entidad,
             "dato_encontrado": texto_legible,
-            "estado_almacenamiento": "Cifrado en BD" if fila.is_sensitive else "Sin Cifrar",
+            "estado_almacenamiento": estado,
             "fecha_deteccion": fila.created_at.astimezone().isoformat() if fila.created_at else None,
             "is_resolved": fila.is_resolved or False,
             "resolution_method": fila.resolution_method,
@@ -105,77 +107,82 @@ def _build_dsar_response(rut_or_email: str, archivos_encontrados: set, db: Sessi
 
 
 def _find_files_by_rut(target_norm: str, db: Session) -> set:
-    """Busca archivos que contengan hallazgos de un RUT normalizado."""
-    all_rut_findings = db.query(ScanFinding).filter(
-        ScanFinding.entity_type == "CHILE_RUT"
+    """Busca archivos que contengan hallazgos de un RUT usando hash indexado."""
+    target_hash = crypto_service.compute_search_hash(target_norm, "CHILE_RUT")
+    if not target_hash:
+        return set()
+
+    rut_findings = db.query(ScanFinding.file_path).filter(
+        ScanFinding.entity_type == "CHILE_RUT",
+        ScanFinding.search_hash == target_hash
     ).all()
 
-    archivos = set()
-    for f in all_rut_findings:
-        if f.is_sensitive and f.detected_text:
-            rut_val = crypto_service.decrypt(f.detected_text)
-        else:
-            rut_val = f.detected_text or ""
-        if normalize_rut(rut_val) == target_norm:
-            if f.file_path:
-                archivos.add(f.file_path)
-    return archivos
+    return {f.file_path for f in rut_findings if f.file_path}
 
 
 def _find_files_by_email(email: str, db: Session) -> set:
-    """Busca archivos que contengan hallazgos de un email."""
-    email_lower = email.strip().lower()
-    all_email_findings = db.query(ScanFinding).filter(
-        ScanFinding.entity_type == "EMAIL_ADDRESS"
+    """Busca archivos que contengan hallazgos de un email usando hash indexado."""
+    target_hash = crypto_service.compute_search_hash(email, "EMAIL_ADDRESS")
+    if not target_hash:
+        return set()
+
+    email_findings = db.query(ScanFinding.file_path).filter(
+        ScanFinding.entity_type == "EMAIL_ADDRESS",
+        ScanFinding.search_hash == target_hash
     ).all()
 
-    archivos = set()
-    for f in all_email_findings:
-        if f.is_sensitive and f.detected_text:
-            val = crypto_service.decrypt(f.detected_text)
-        else:
-            val = f.detected_text or ""
-        if val.strip().lower() == email_lower:
-            if f.file_path:
-                archivos.add(f.file_path)
-    return archivos
+    return {f.file_path for f in email_findings if f.file_path}
 
 
 def _find_files_by_name(name: str, db: Session) -> set:
     """Busca archivos que contengan hallazgos PERSON que coincidan con el nombre.
     
-    Requiere que TODAS las partes del nombre (>= 3 chars) aparezcan en
-    hallazgos PERSON del MISMO archivo. Ejemplo: "Pablo Ortiz" solo matchea
-    archivos donde exista un PERSON con "pablo" Y otro (o el mismo) con "ortiz".
-    Esto evita falsos positivos en BDs con miles de registros.
+    Calcula el hash de cada parte del nombre y busca coincidencias parciales
+    agrupando por archivo. Requiere que TODAS las partes del nombre aparezcan
+    en hallazgos PERSON del MISMO archivo.
     """
-    name_parts = [p.strip().lower() for p in name.split() if len(p.strip()) >= 3]
+    name_parts = [p.strip() for p in name.split() if len(p.strip()) >= 3]
     if not name_parts:
         return set()
 
-    all_person_findings = db.query(ScanFinding).filter(
-        ScanFinding.entity_type == "PERSON"
+    # Calcular hashes de cada parte del nombre
+    part_hashes = set()
+    for part in name_parts:
+        h = crypto_service.compute_search_hash(part, "PERSON")
+        if h:
+            part_hashes.add(h)
+
+    if not part_hashes:
+        return set()
+
+    # Buscar hallazgos PERSON cuyos hashes coincidan con alguna parte
+    person_findings = db.query(ScanFinding.file_path, ScanFinding.search_hash).filter(
+        ScanFinding.entity_type == "PERSON",
+        ScanFinding.search_hash.in_(part_hashes)
     ).all()
 
-    # Agrupar textos PERSON por archivo
-    file_texts: dict[str, list[str]] = {}
-    for f in all_person_findings:
-        if not f.file_path:
-            continue
-        if f.is_sensitive and f.detected_text:
-            val = crypto_service.decrypt(f.detected_text)
-        else:
-            val = f.detected_text or ""
-        val_lower = val.strip().lower()
-        if val_lower:
-            file_texts.setdefault(f.file_path, []).append(val_lower)
+    # Agrupar por archivo y verificar que TODAS las partes aparezcan
+    file_hashes: dict[str, set] = {}
+    for f in person_findings:
+        if f.file_path:
+            file_hashes.setdefault(f.file_path, set()).add(f.search_hash)
 
-    # Solo incluir archivos donde TODAS las partes del nombre aparezcan
-    archivos = set()
-    for file_path, texts in file_texts.items():
-        combined = " ".join(texts)
-        if all(part in combined for part in name_parts):
+    # También intentar buscar el nombre completo como una sola entidad
+    full_hash = crypto_service.compute_search_hash(name, "PERSON")
+    if full_hash:
+        full_matches = db.query(ScanFinding.file_path).filter(
+            ScanFinding.entity_type == "PERSON",
+            ScanFinding.search_hash == full_hash
+        ).all()
+        archivos = {f.file_path for f in full_matches if f.file_path}
+    else:
+        archivos = set()
+
+    # Agregar archivos donde todas las partes aparecen
+    for file_path, hashes in file_hashes.items():
+        if part_hashes.issubset(hashes):
             archivos.add(file_path)
+
     return archivos
 
 

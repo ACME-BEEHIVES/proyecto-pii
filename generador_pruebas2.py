@@ -2,7 +2,7 @@ import os
 import random
 
 # --- RUTA DE TU CARPETA ---
-CARPETA_DESTINO = r"C:\Users\PabloOrtizCollados\Desktop\proyecto-pii\CARPETA_PRUEBA_MASIVA"
+CARPETA_DESTINO = r"C:\Users\CarlosCavieres\Documents\pruebas\proyecto-pii\CARPETA_PRUEBA_MASIVA"
 
 # Listas de datos falsos para combinar
 NOMBRES = ["Juan", "Maria", "Diego", "Carla", "Pedro", "Francisca", "Ricardo", "Loreto"]

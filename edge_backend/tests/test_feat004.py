@@ -62,7 +62,7 @@ def test_config_router_endpoints():
 
     # PUT config con datos válidos
     payload = {
-        "scan_paths": [r"C:\Users\PabloOrtizCollados\Desktop\proyecto-pii\CARPETA_PRUEBA_MASIVA"],
+        "scan_paths": [r"C:\Users\ClienteDemo\Documentos\CARPETA_PRUEBA_MASIVA"],
         "extensions": [".txt", ".pdf"],
         "entities": ["CHILE_RUT", "EMAIL_ADDRESS"],
         "max_workers": 2,
@@ -101,15 +101,19 @@ def test_health_router_endpoints():
 # 3. Tests de DSAR Router
 def test_dsar_router_mapping():
     db = SessionLocal()
+    rut_test = "19.999.999-9"
     try:
-        # Registrar un hallazgo de RUT para pruebas
-        rut_test = "19.999.999-9"
-        
+        # Limpiar restos de una corrida anterior que haya fallado antes de
+        # llegar a su propia limpieza (evita que este test quede roto para
+        # siempre por un fallo previo que dejo filas huerfanas).
+        db.query(ScanFinding).filter(ScanFinding.file_path == "/app/test_dsar/doc1.pdf").delete(synchronize_session=False)
+        db.commit()
+
         # Guardar encriptado
         enc_salud = crypto_service.encrypt("Cáncer de pulmón")
-        
+
         finding1 = ScanFinding(
-            file_path="C:\\test_dsar\\doc1.pdf",
+            file_path="/app/test_dsar/doc1.pdf",
             file_name="doc1.pdf",
             entity_type="CHILE_RUT",
             detected_text=rut_test,
@@ -117,7 +121,7 @@ def test_dsar_router_mapping():
             is_sensitive=False
         )
         finding2 = ScanFinding(
-            file_path="C:\\test_dsar\\doc1.pdf",
+            file_path="/app/test_dsar/doc1.pdf",
             file_name="doc1.pdf",
             entity_type="DATA_SALUD",
             detected_text=enc_salud,
@@ -136,25 +140,24 @@ def test_dsar_router_mapping():
         assert data["resumen"]["archivos_involucrados"] == 1
         assert data["resumen"]["alertas_datos_sensibles"] == 1
         assert "doc1.pdf" in data["mapa_de_datos"]
-        
+
         # Consultar DSAR con formato alternativo (sin puntos)
         res_alt = client.get("/api/dsar/19999999-9")
         assert res_alt.status_code == 200
         data_alt = res_alt.json()
         assert data_alt["resumen"]["archivos_involucrados"] == 1
         assert "doc1.pdf" in data_alt["mapa_de_datos"]
-        
+
         # Verificar descifrado
         items = data["mapa_de_datos"]["doc1.pdf"]
         salud_item = next(item for item in items if item["categoria_legal"] == "DATA_SALUD")
         assert salud_item["dato_encontrado"] == "Cáncer de pulmón"
         assert salud_item["estado_almacenamiento"] == "Cifrado en BD"
-
-        # Limpiar
-        db.delete(finding1)
-        db.delete(finding2)
-        db.commit()
     finally:
+        # Limpiar siempre (ambos hallazgos, no solo el RUT), incluso si una
+        # aserción fallo arriba.
+        db.query(ScanFinding).filter(ScanFinding.file_path == "/app/test_dsar/doc1.pdf").delete(synchronize_session=False)
+        db.commit()
         db.close()
 
 # 4. Tests de Redaction Router

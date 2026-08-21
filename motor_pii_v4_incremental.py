@@ -165,6 +165,6 @@ def escanear_y_lanzar(ruta_raiz):
     print("\n--- Escaneo de upshield Finalizado ---")
 
 if __name__ == "__main__":
-    CARPETA_A_ESCANEAR = r"C:\Users\PabloOrtizCollados\Desktop\proyecto-pii\CARPETA_PRUEBA_MASIVA"
+    CARPETA_A_ESCANEAR = r"C:\Users\CarlosCavieres\Documents\pruebas\proyecto-pii\CARPETA_PRUEBA_MASIVA"
     if esperar_servicios():
         escanear_y_lanzar(CARPETA_A_ESCANEAR)

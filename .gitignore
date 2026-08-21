@@ -10,6 +10,8 @@
 /quarantine/
 /redacted_files/
 /scratch/
+/edge_backend/data/
+*.db
 
 # === Variables de entorno y secretos ===
 .env

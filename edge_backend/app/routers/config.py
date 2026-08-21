@@ -18,8 +18,10 @@ def get_or_create_default_config(db: Session) -> ScanConfig:
     config = db.query(ScanConfig).filter(ScanConfig.is_active == True).first()
     if not config:
         # Default scan config mapping
+        # Carpeta de demo montada en docker-compose.yml (./CARPETA_PRUEBA_MASIVA:/app/CARPETA_PRUEBA_MASIVA),
+        # independiente de en que maquina o bajo que usuario este clonado el repo.
         config = ScanConfig(
-            scan_paths=json.dumps([r"C:\Users\PabloOrtizCollados\Desktop\proyecto-pii\CARPETA_PRUEBA_MASIVA"]),
+            scan_paths=json.dumps(["/app/CARPETA_PRUEBA_MASIVA"]),
             extensions=json.dumps([".pdf", ".docx", ".xlsx", ".xls", ".doc", ".txt", ".jpg", ".png", ".csv"]),
             entities=json.dumps(["CHILE_RUT", "EMAIL_ADDRESS", "PERSON", "DATA_SALUD", "DATA_ETNIA", "DATA_POLITICA", "DATA_RELIGION", "DATA_SEXUALIDAD", "DATA_SINDICAL", "DATA_SOCIOECONOMICO", "DATA_IDEOLOGIA", "DATA_BIOLOGICO", "DATA_BIOMETRICO", "PHONE_NUMBER", "DATE_TIME", "DOMICILIO", "NACIONALIDAD", "DATA_PENAL", "PASAPORTE", "LICENCIA_CONDUCIR", "CUENTA_BANCARIA", "NUMERO_SERIE_DOC"]),
             max_workers=1,
@@ -175,36 +177,11 @@ def update_config(payload: ScanConfigUpdate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(config)
     
-    # 2. Reconstruir DATABASE_URL y escribir a .env solo si se especifica db_host
+    # 2. Reconstruir DATABASE_URL (Deshabilitado: el motor ahora usa SQLite local fijo)
     from app.config import get_settings
-    old_db_url = get_settings().DATABASE_URL
-    current_db_url = old_db_url
-    
+    current_db_url = get_settings().DATABASE_URL
     env_updates = {}
     
-    if payload.db_host.strip():
-        new_db_url = reconstruct_db_url(
-            db_host=payload.db_host,
-            db_port=payload.db_port,
-            db_user=payload.db_user,
-            db_password=payload.db_password,
-            db_name=payload.db_name
-        )
-        
-        if new_db_url != old_db_url:
-            from sqlalchemy import create_engine as sq_create_engine
-            # Probar la conexión antes de guardar
-            try:
-                temp_engine = sq_create_engine(new_db_url)
-                with temp_engine.connect() as conn:
-                    pass
-                temp_engine.dispose()
-            except Exception as e:
-                raise HTTPException(status_code=400, detail=f"Error al conectar con la base de datos especificada: {str(e)}")
-                
-            env_updates["DATABASE_URL"] = new_db_url
-            current_db_url = new_db_url
-            
     # Guardar credenciales de UpShield en .env
     env_updates["UPSHIELD_API_URL"] = payload.upshield_api_url
     env_updates["UPSHIELD_API_KEY"] = payload.upshield_api_key
@@ -226,10 +203,6 @@ def update_config(payload: ScanConfigUpdate, db: Session = Depends(get_db)):
         for k, v in env_updates.items():
             os.environ[k] = v
         get_settings.cache_clear()
-        
-        if "DATABASE_URL" in env_updates:
-            from app.database import recreate_db_engine
-            recreate_db_engine(current_db_url)
             
     db_details = parse_db_url(current_db_url)
     settings = get_settings()
@@ -298,8 +271,15 @@ class BrowseDirResponse(BaseModel):
 def browse_directory(path: Optional[str] = None):
     """Obtiene el listado de subdirectorios de una ruta para el explorador de archivos."""
     if not path or not path.strip():
-        # Default to /app (if it exists) or current directory
-        path = "/app" if os.path.exists("/app") else os.getcwd()
+        # Punto de partida util para elegir carpetas de un cliente: el mount
+        # generico de C:\Users (ver docker-compose.yml / path_service.py). Si no
+        # esta disponible (ej. corriendo fuera de Docker) cae a /app o cwd.
+        if os.path.exists("/mnt/c/Users"):
+            path = "/mnt/c/Users"
+        elif os.path.exists("/app"):
+            path = "/app"
+        else:
+            path = os.getcwd()
     
     path = os.path.abspath(path)
     

@@ -60,3 +60,108 @@ def check_text_contains_sensitive(text: str, entity_type: str = None) -> bool:
                     return True
     return False
 
+
+# ---------------------------------------------------------------------------
+# Enmascaramiento de datos personales (Ley 21.719 — minimización de datos)
+# ---------------------------------------------------------------------------
+import hmac
+import hashlib
+import re as _re
+
+def _normalize_for_hash(text: str, entity_type: str) -> str:
+    """Normaliza el texto antes de calcular el hash de búsqueda.
+    Cada tipo de entidad tiene su propia normalización para garantizar que
+    búsquedas con formatos ligeramente distintos (ej. RUT con/sin puntos)
+    generen el mismo hash.
+    """
+    if not text:
+        return ""
+    t = text.strip()
+    if entity_type == "CHILE_RUT":
+        # Solo dígitos + K, mayúscula
+        return _re.sub(r'[^0-9kK]', '', t).upper()
+    if entity_type == "EMAIL_ADDRESS":
+        return t.lower()
+    if entity_type == "PERSON":
+        # Minúsculas, colapsar espacios
+        return " ".join(t.lower().split())
+    if entity_type == "PHONE_NUMBER":
+        return _re.sub(r'[^0-9+]', '', t)
+    # Genérico
+    return " ".join(t.lower().split())
+
+
+def compute_search_hash(text: str, entity_type: str) -> str:
+    """Calcula un HMAC-SHA256 del valor normalizado usando la llave de cifrado
+    como secreto. Permite buscar titulares por coincidencia exacta sin
+    almacenar el dato personal real (pseudonimización).
+    """
+    normalized = _normalize_for_hash(text, entity_type)
+    if not normalized:
+        return ""
+    return hmac.new(key, normalized.encode('utf-8'), hashlib.sha256).hexdigest()
+
+
+def mask_text(text: str, entity_type: str) -> str:
+    """Genera una versión enmascarada del dato personal que permite al operador
+    *identificar* el hallazgo sin exponer el dato completo.
+
+    Ejemplos:
+      RUT  19.456.789-0  →  19.XXX.XXX-0
+      Email juan@g.com   →  j***@g.com
+      Nombre Juan Pérez  →  Juan P.
+      Teléfono +56987654 →  +56 9 XXXX 4321
+    """
+    if not text:
+        return ""
+    t = text.strip()
+
+    if entity_type == "CHILE_RUT":
+        digits = _re.sub(r'[^0-9kK]', '', t).upper()
+        if len(digits) >= 8:
+            # Mostrar primeros 2 dígitos + DV, ocultar el resto
+            return f"{digits[:2]}.XXX.XXX-{digits[-1]}"
+        if len(digits) >= 2:
+            return f"{digits[0]}{'X' * (len(digits) - 2)}-{digits[-1]}"
+        return "X" * len(t)
+
+    if entity_type == "EMAIL_ADDRESS":
+        if "@" in t:
+            local, domain = t.rsplit("@", 1)
+            masked_local = local[0] + "***" if local else "***"
+            return f"{masked_local}@{domain}"
+        return t[0] + "***"
+
+    if entity_type == "PERSON":
+        parts = t.split()
+        if len(parts) >= 2:
+            # Primer nombre completo + iniciales del resto
+            return parts[0] + " " + " ".join(p[0] + "." for p in parts[1:] if p)
+        return t
+
+    if entity_type == "PHONE_NUMBER":
+        digits_only = _re.sub(r'[^0-9+]', '', t)
+        if len(digits_only) >= 8:
+            # Mostrar últimos 4 dígitos
+            return digits_only[:len(digits_only) - 4] + " XXXX" if len(digits_only) <= 5 else digits_only[:len(digits_only) - 4] + "XXXX"
+        return "X" * len(t)
+
+    if entity_type == "DATE_TIME":
+        # Las fechas no son sensibles per se, mostrar tal cual
+        return t
+
+    if entity_type in ("DOMICILIO", "NACIONALIDAD"):
+        # Mostrar primeras palabras, ocultar el resto
+        parts = t.split()
+        if len(parts) > 3:
+            return " ".join(parts[:2]) + " [...]"
+        return t
+
+    # Entidades sensibles: no deberían llegar aquí (se cifran), pero por si acaso
+    if entity_type in ENTIDADES_SENSIBLES:
+        return "[DATO SENSIBLE PROTEGIDO]"
+
+    # Genérico: mostrar primeros 3 chars
+    if len(t) > 6:
+        return t[:3] + "***"
+    return t

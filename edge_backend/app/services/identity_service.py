@@ -38,7 +38,11 @@ def are_paths_related(path1: str, path2: str) -> bool:
     return False
 
 def get_identity_subjects(db: Session) -> List[Dict[str, Any]]:
-    """Agrupa y correlaciona hallazgos para construir perfiles de sujetos (Ley 21.719) en memoria, O(N)."""
+    """Agrupa y correlaciona hallazgos para construir perfiles de sujetos (Ley 21.719) en memoria, O(N).
+    
+    Usa search_hash para correlacionar hallazgos del mismo titular sin
+    necesidad de acceder al dato personal real.
+    """
     # 1. Subconsulta para obtener las rutas que tienen al menos un RUT
     subquery = db.query(ScanFinding.file_path).filter(
         ScanFinding.entity_type == "CHILE_RUT"
@@ -50,6 +54,7 @@ def get_identity_subjects(db: Session) -> List[Dict[str, Any]]:
         ScanFinding.file_path,
         ScanFinding.entity_type,
         ScanFinding.detected_text,
+        ScanFinding.search_hash,
         ScanFinding.is_sensitive
     ).join(
         subquery,
@@ -59,13 +64,11 @@ def get_identity_subjects(db: Session) -> List[Dict[str, Any]]:
     findings_by_group: Dict[str, List[tuple]] = {}
     rut_findings_by_group: Dict[str, List[tuple]] = {}
     
-    for f_id, f_path, f_entity_type, f_detected_text, f_is_sensitive in results:
+    for f_id, f_path, f_entity_type, f_detected_text, f_search_hash, f_is_sensitive in results:
         if not f_path:
             continue
             
         # Determinar clave de grupo
-        # Para archivos: la ruta del archivo es el grupo.
-        # Para bases de datos: db://{db_config}/{table_name}/{col_name}/{row_id} -> grupo: db://{db_config}/{table_name}/{row_id}
         if f_path.startswith("db://"):
             parts = f_path.split("/")
             if len(parts) >= 5:
@@ -75,7 +78,7 @@ def get_identity_subjects(db: Session) -> List[Dict[str, Any]]:
         else:
             group_key = f_path
             
-        f_tuple = (f_id, f_path, f_entity_type, f_detected_text, f_is_sensitive)
+        f_tuple = (f_id, f_path, f_entity_type, f_detected_text, f_search_hash, f_is_sensitive)
         
         if group_key not in findings_by_group:
             findings_by_group[group_key] = []
@@ -91,18 +94,23 @@ def get_identity_subjects(db: Session) -> List[Dict[str, Any]]:
     # 2. Correlacionar hallazgos del mismo grupo
     for group_key, rufs in rut_findings_by_group.items():
         group_findings = findings_by_group.get(group_key, [])
-        for rf_id, rf_path, rf_entity_type, rf_detected_text, rf_is_sensitive in rufs:
-            rut_val = crypto_service.decrypt(rf_detected_text) if rf_is_sensitive else rf_detected_text
-            if not rut_val:
+        for rf_id, rf_path, rf_entity_type, rf_detected_text, rf_search_hash, rf_is_sensitive in rufs:
+            # Usar search_hash como clave de agrupación (en vez del RUT real)
+            if not rf_search_hash:
                 continue
                 
-            norm_rut = normalize_rut(rut_val)
-            if not norm_rut:
-                continue
+            subject_key = rf_search_hash
+            
+            # Para el display: usar texto enmascarado o descifrar si es sensible
+            if rf_is_sensitive:
+                rut_display = crypto_service.decrypt(rf_detected_text)
+                rut_display = crypto_service.mask_text(rut_display, "CHILE_RUT")
+            else:
+                rut_display = rf_detected_text  # Ya está enmascarado
                 
-            if norm_rut not in subjects:
-                subjects[norm_rut] = {
-                    "rut": format_rut(rut_val),
+            if subject_key not in subjects:
+                subjects[subject_key] = {
+                    "rut": rut_display,
                     "names": set(),
                     "emails": set(),
                     "phones": set(),
@@ -113,38 +121,44 @@ def get_identity_subjects(db: Session) -> List[Dict[str, Any]]:
                     "findings_ids": []
                 }
                 
-            subjects[norm_rut]["files"].add(rf_path)
-            if rf_id not in subjects[norm_rut]["findings_ids"]:
-                subjects[norm_rut]["findings_ids"].append(rf_id)
-                subjects[norm_rut]["findings_count"] += 1
+            subjects[subject_key]["files"].add(rf_path)
+            if rf_id not in subjects[subject_key]["findings_ids"]:
+                subjects[subject_key]["findings_ids"].append(rf_id)
+                subjects[subject_key]["findings_count"] += 1
             if rf_is_sensitive:
-                subjects[norm_rut]["risk_level"] = "ALTO"
+                subjects[subject_key]["risk_level"] = "ALTO"
                 
-            for gf_id, gf_path, gf_entity_type, gf_detected_text, gf_is_sensitive in group_findings:
-                decrypted = crypto_service.decrypt(gf_detected_text) if gf_is_sensitive else gf_detected_text
-                if not decrypted:
+            for gf_id, gf_path, gf_entity_type, gf_detected_text, gf_search_hash, gf_is_sensitive in group_findings:
+                # Texto ya viene enmascarado para básicas, cifrado para sensibles
+                if gf_is_sensitive:
+                    display_text = crypto_service.decrypt(gf_detected_text)
+                    display_text = crypto_service.mask_text(display_text, gf_entity_type)
+                else:
+                    display_text = gf_detected_text or ""
+                    
+                if not display_text:
                     continue
                     
                 if gf_entity_type == "PERSON":
-                    if len(decrypted.strip()) > 3:
-                        subjects[norm_rut]["names"].add(decrypted.strip())
+                    if len(display_text.strip()) > 3:
+                        subjects[subject_key]["names"].add(display_text.strip())
                 elif gf_entity_type == "EMAIL_ADDRESS":
-                    subjects[norm_rut]["emails"].add(decrypted.strip().lower())
+                    subjects[subject_key]["emails"].add(display_text.strip())
                 elif gf_entity_type == "PHONE_NUMBER":
-                    subjects[norm_rut]["phones"].add(decrypted.strip())
+                    subjects[subject_key]["phones"].add(display_text.strip())
                 elif gf_entity_type == "DATE_TIME":
-                    subjects[norm_rut]["birth_dates"].add(decrypted.strip())
+                    subjects[subject_key]["birth_dates"].add(display_text.strip())
                     
                 if gf_is_sensitive or gf_entity_type in ["DATA_SALUD", "DATA_SEXUALIDAD", "DATA_POLITICA", "DATA_RELIGION", "DATA_ETNIA"]:
-                    subjects[norm_rut]["risk_level"] = "ALTO"
+                    subjects[subject_key]["risk_level"] = "ALTO"
                     
-                if gf_id not in subjects[norm_rut]["findings_ids"]:
-                    subjects[norm_rut]["findings_ids"].append(gf_id)
-                    subjects[norm_rut]["findings_count"] += 1
+                if gf_id not in subjects[subject_key]["findings_ids"]:
+                    subjects[subject_key]["findings_ids"].append(gf_id)
+                    subjects[subject_key]["findings_count"] += 1
 
     # 3. Formatear resultados para retorno JSON
     results_list = []
-    for norm_rut, sub in subjects.items():
+    for subject_key, sub in subjects.items():
         display_files = []
         for f in sub["files"]:
             if f.startswith("db://"):

@@ -53,7 +53,7 @@ def test_tika_service_extract_text(mock_put):
         assert extracted == "Texto extraido de prueba"
 
 # 3. Tests de Presidio Service
-@patch("requests.post")
+@patch("app.services.presidio_service._session.post")
 def test_presidio_service_analyze(mock_post):
     mock_response = MagicMock()
     mock_response.status_code = 200

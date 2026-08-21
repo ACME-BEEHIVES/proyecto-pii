@@ -485,7 +485,9 @@ const FindingsPage: React.FC = () => {
                   <Grid size={12}>
                     <Box sx={{ border: '1px solid #E9ECEF', borderRadius: 1, p: 2, bg: '#F8F9FA' }}>
                       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                        <Typography variant="caption" color="text.secondary">DATO DETECTADO (DESCIFRADO AL VUELO)</Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {detailFinding.is_sensitive ? "DATO DETECTADO (CIFRADO)" : "DATO DETECTADO (ENMASCARADO)"}
+                        </Typography>
                         {detailFinding.is_sensitive && (
                           <Button
                             size="small"
@@ -493,7 +495,7 @@ const FindingsPage: React.FC = () => {
                             onClick={() => setShowSensitiveText(!showSensitiveText)}
                             startIcon={showSensitiveText ? <VisibilityOffIcon /> : <VisibilityIcon />}
                           >
-                            {showSensitiveText ? 'Ocultar' : 'Ver'}
+                            {showSensitiveText ? 'Ocultar' : 'Ver Descifrado'}
                           </Button>
                         )}
                       </Box>
@@ -504,7 +506,7 @@ const FindingsPage: React.FC = () => {
                         </Typography>
                       ) : (
                         <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
-                          🔒 Haz clic en "Ver" para desencriptar el valor confidencial
+                          🔒 Haz clic en "Ver Descifrado" para desencriptar el valor confidencial
                         </Typography>
                       )}
                     </Box>

@@ -69,5 +69,5 @@ def escanear_y_lanzar(ruta_raiz):
         executor.map(procesar_archivo, archivos_a_procesar)
 
 if __name__ == "__main__":
-    ruta_a_revisar = r"C:\Users\PabloOrtizCollados\Desktop\proyecto-pii"
+    ruta_a_revisar = r"C:\Users\CarlosCavieres\Documents\pruebas\proyecto-pii"
     escanear_y_lanzar(ruta_a_revisar)

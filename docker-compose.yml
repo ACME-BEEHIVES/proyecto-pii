@@ -49,10 +49,15 @@ services:
       - "host.docker.internal:host-gateway"
     volumes:
       - ./edge_backend:/app
+      - ./edge_backend/data:/app/data
       - ./CARPETA_PRUEBA_MASIVA:/app/CARPETA_PRUEBA_MASIVA
       - ./RRHH:/app/RRHH
       - ./Contratos_2025:/app/Contratos_2025
-      - C:/Users/PabloOrtizCollados/Desktop/Archivos Prueba PII:/Archivos_Prueba_PII
+      # Mount para el servidor Linux restringido. 
+      # Todos los archivos que el cliente quiera escanear deben colocarse dentro de esta carpeta.
+      - /opt/upshield-app/datos_a_escanear:/app/datos_a_escanear:ro
+    command: >
+      sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8001"
     restart: always
 
   edge-frontend:

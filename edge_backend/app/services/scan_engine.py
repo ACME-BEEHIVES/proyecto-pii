@@ -17,6 +17,18 @@ scan_lock = threading.Lock()
 # Conjunto global para almacenar IDs de escaneos cancelados
 cancelled_jobs = set()
 
+_ACCENTS = {"Á": "A", "É": "E", "Í": "I", "Ó": "O", "Ú": "U", "Ñ": "N"}
+
+
+def _normalizar_dedup(texto: str) -> str:
+    """Normaliza un valor detectado para comparar duplicados del OCR multi-pass
+    (mismas palabras, distinta tilde/espaciado entre pasadas)."""
+    valor = texto.strip().upper()
+    for k, v in _ACCENTS.items():
+        valor = valor.replace(k, v)
+    return " ".join(valor.split())
+
+
 def get_file_md5(file_path: str) -> str:
     """Calcula el hash MD5 del contenido de un archivo."""
     hasher = hashlib.md5()
@@ -97,6 +109,11 @@ def process_file(file_path: str, scan_job_id: int, entities: list[str]):
             db.commit()
 
         hallazgos_guardados = 0
+        # El OCR multi-pass (varias estrategias de preprocesamiento sobre la misma
+        # imagen) puede detectar el mismo dato repetido varias veces en el texto
+        # combinado. Se deduplica por (tipo de entidad, valor normalizado) para
+        # no guardar el mismo hallazgo N veces por archivo.
+        valores_vistos: set[tuple[str, str]] = set()
         if isinstance(findings, list) and len(findings) > 0:
             for h in findings:
                 if h.get('score', 0) >= 0.5:
@@ -104,6 +121,28 @@ def process_file(file_path: str, scan_job_id: int, entities: list[str]):
                     end = h['end']
                     texto_original = texto[start:end]
                     entity_type = h['entity_type']
+                    
+                    if entity_type == "PERSON":
+                        # Filtrar ruido de OCR en nombres (frecuente en carnets):
+                        # Exigir al menos 2 palabras (nombre y apellido) y que cada una tenga >= 2 caracteres.
+                        words = [w for w in texto_original.split() if len(w) >= 2]
+                        if len(words) < 2:
+                            continue
+
+                    search_hash = crypto_service.compute_search_hash(texto_original, entity_type)
+                    
+                    # Deduplicar usando el search_hash (ej. RUT con y sin puntos generan el mismo hash)
+                    # Para CHILE_RUT, deduplicamos usando el texto enmascarado para evitar
+                    # que alucinaciones del OCR (ej. un dígito mal leído) generen múltiples
+                    # registros falsos de la misma persona en el mismo documento.
+                    if entity_type == "CHILE_RUT":
+                        clave_dedup = (entity_type, crypto_service.mask_text(texto_original, entity_type))
+                    else:
+                        clave_dedup = (entity_type, search_hash)
+                    
+                    if clave_dedup in valores_vistos:
+                        continue
+                    valores_vistos.add(clave_dedup)
 
                     is_sensitive = crypto_service.is_sensitive_entity(entity_type)
                     if not is_sensitive and crypto_service.check_text_contains_sensitive(texto_original, entity_type):
@@ -112,7 +151,7 @@ def process_file(file_path: str, scan_job_id: int, entities: list[str]):
                     if is_sensitive:
                         texto_a_guardar = crypto_service.encrypt(texto_original)
                     else:
-                        texto_a_guardar = texto_original
+                        texto_a_guardar = crypto_service.mask_text(texto_original, entity_type)
 
                     finding = ScanFinding(
                         scan_job_id=scan_job_id,
@@ -120,6 +159,7 @@ def process_file(file_path: str, scan_job_id: int, entities: list[str]):
                         file_name=os.path.basename(file_path),
                         entity_type=entity_type,
                         detected_text=texto_a_guardar,
+                        search_hash=search_hash,
                         confidence_score=h['score'],
                         is_sensitive=is_sensitive,
                         is_resolved=False,

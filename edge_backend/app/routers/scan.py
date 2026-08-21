@@ -13,9 +13,11 @@ router = APIRouter(prefix="/scan")
 def get_or_create_default_config(db: Session) -> ScanConfig:
     config = db.query(ScanConfig).filter(ScanConfig.is_active == True).first()
     if not config:
-        # Configuración por defecto
+        # Configuración por defecto: carpeta de demo montada en docker-compose.yml
+        # (./CARPETA_PRUEBA_MASIVA:/app/CARPETA_PRUEBA_MASIVA), independiente de en
+        # que maquina o bajo que usuario este clonado el repo.
         config = ScanConfig(
-            scan_paths=json.dumps([r"C:\Users\PabloOrtizCollados\Desktop\proyecto-pii\CARPETA_PRUEBA_MASIVA"]),
+            scan_paths=json.dumps(["/app/CARPETA_PRUEBA_MASIVA"]),
             extensions=json.dumps([".pdf", ".docx", ".xlsx", ".xls", ".doc", ".txt", ".jpg", ".png", ".csv"]),
             entities=json.dumps(["CHILE_RUT", "EMAIL_ADDRESS", "PERSON", "DATA_SALUD", "DATA_ETNIA", "DATA_POLITICA", "DATA_RELIGION", "DATA_SEXUALIDAD", "DATA_SINDICAL", "DATA_SOCIOECONOMICO", "DATA_IDEOLOGIA", "DATA_BIOLOGICO", "DATA_BIOMETRICO", "PHONE_NUMBER", "DATE_TIME", "DOMICILIO", "NACIONALIDAD", "DATA_PENAL", "PASAPORTE", "LICENCIA_CONDUCIR", "CUENTA_BANCARIA", "NUMERO_SERIE_DOC"]),
             max_workers=1,

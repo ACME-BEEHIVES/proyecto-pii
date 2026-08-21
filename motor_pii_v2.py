@@ -72,5 +72,5 @@ def escanear_directorio(ruta_raiz):
 if __name__ == "__main__":
     # AQUÍ PONES LA CARPETA QUE QUIERES ESCANEAR
     # Puedes usar '.' para la carpeta actual o una ruta completa
-    ruta_a_revisar = r"C:\Users\PabloOrtizCollados\Desktop\proyecto-pii" 
+    ruta_a_revisar = r"C:\Users\CarlosCavieres\Documents\pruebas\proyecto-pii" 
     escanear_directorio(ruta_a_revisar)

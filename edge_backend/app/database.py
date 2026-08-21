@@ -8,8 +8,11 @@ _SessionLocal = None
 def get_engine():
     global _engine
     if _engine is None:
+        db_url = get_settings().DATABASE_URL
+        connect_args = {"check_same_thread": False} if db_url.startswith("sqlite") else {}
         _engine = create_engine(
-            get_settings().DATABASE_URL,
+            db_url,
+            connect_args=connect_args,
             pool_pre_ping=True,
             pool_size=5,
             max_overflow=10,
@@ -30,8 +33,10 @@ def recreate_db_engine(new_db_url: str):
             _engine.dispose()
         except Exception:
             pass
+    connect_args = {"check_same_thread": False} if new_db_url.startswith("sqlite") else {}
     _engine = create_engine(
         new_db_url,
+        connect_args=connect_args,
         pool_pre_ping=True,
         pool_size=5,
         max_overflow=10,

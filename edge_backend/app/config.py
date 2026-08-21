@@ -6,7 +6,7 @@ class Settings(BaseSettings):
     """Configuracion del Edge Agent. Lee de .env automaticamente."""
 
     # Base de Datos
-    DATABASE_URL: str = "mysql+mysqlconnector://root:@127.0.0.1:3306/pii_discovery"
+    DATABASE_URL: str = "sqlite:///./data/pii_discovery.db"
 
     # Cifrado PII
     PII_ENCRYPTION_KEY: str = ""

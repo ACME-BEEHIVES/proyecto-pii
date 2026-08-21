@@ -22,7 +22,9 @@ AD_HOC_RECOGNIZERS = [
         "supported_entity": "CHILE_RUT",
         "supported_language": "es",
         "patterns": [
-            {"name": "rut", "regex": r"\b\d{1,2}\.?\d{3}\.?\d{3}-[\dkK]\b", "score": 0.95}
+            # El separador antes del digito verificador tolera '-', '.' o espacio
+            # porque el OCR de carnets suele confundir el guion con esos caracteres.
+            {"name": "rut", "regex": r"\b\d{1,2}\.?\d{3}\.?\d{3}[\s.-][\dkK]\b", "score": 0.9}
         ]
     },
     {
@@ -32,6 +34,25 @@ AD_HOC_RECOGNIZERS = [
         "patterns": [
             {"name": "email", "regex": r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+", "score": 0.95}
         ]
+    },
+    {
+        # El NER generico (spaCy) falla en documentos tipo carnet: son fragmentos
+        # de mayusculas sueltas (etiqueta: valor) sin estructura de oracion normal,
+        # y el modelo de nombres esta entrenado para texto corrido. Este detector
+        # busca secuencias de 2 a 4 palabras en MAYUSCULAS (nombres/apellidos en
+        # carnets, contratos, formularios). Los falsos positivos institucionales
+        # ("REPUBLICA DE CHILE", "SERVICIO DE REGISTRO CIVIL", etc.) se filtran
+        # aparte en analyze_text() usando _BOILERPLATE_WORDS.
+        "name": "DetectorNombreMayusculas",
+        "supported_entity": "PERSON",
+        "supported_language": "es",
+        "patterns": [
+            # (?-i:...) fuerza sensibilidad a mayusculas: Presidio compila los
+            # patrones ad-hoc con IGNORECASE por defecto, y sin este scoped-flag
+            # el regex tambien matcheaba palabras en minuscula/mixtas (ruido OCR).
+            {"name": "nombre_mayusculas", "regex": r"(?-i:\b(?!(?:REPUBLICA|CHILE|SERVICIO|REGISTRO|CIVIL|IDENTIFICACION|CEDULA|IDENTIDAD|NACIONALIDAD|SEXO|FECHA|NACIMIENTO|EMISION|VENCIMIENTO|DOCUMENTO|NUMERO|FIRMA|TITULAR|APELLIDOS|NOMBRES|CHILENA|CHILENO|RUN|RUT)\b)[A-ZÁÉÍÓÚÑ]{3,}(?:\s+(?!(?:REPUBLICA|CHILE|SERVICIO|REGISTRO|CIVIL|IDENTIFICACION|CEDULA|IDENTIDAD|NACIONALIDAD|SEXO|FECHA|NACIMIENTO|EMISION|VENCIMIENTO|DOCUMENTO|NUMERO|FIRMA|TITULAR|APELLIDOS|NOMBRES|CHILENA|CHILENO|RUN|RUT)\b)[A-ZÁÉÍÓÚÑ]{3,}){1,4}\b)", "score": 0.55}
+        ],
+        "context": ["apellidos", "nombres", "titular", "cedula", "identidad"]
     },
     {
         "name": "DetectorTelefono",
@@ -46,7 +67,14 @@ AD_HOC_RECOGNIZERS = [
         "supported_entity": "DATE_TIME",
         "supported_language": "es",
         "patterns": [
-            {"name": "fecha", "regex": r"\b(?:\d{4}-\d{2}-\d{2}|\d{2}-\d{2}-\d{4}|\d{4}/\d{2}/\d{2}|\d{2}/\d{2}/\d{4})\b", "score": 0.85}
+            {"name": "fecha", "regex": r"\b(?:\d{4}-\d{2}-\d{2}|\d{2}-\d{2}-\d{4}|\d{4}/\d{2}/\d{2}|\d{2}/\d{2}/\d{4})\b", "score": 0.85},
+            {
+                # El sufijo [a-z]* cubre tanto la forma abreviada (MAY) como el
+                # nombre completo del mes (MAYO), que es como lo imprime el carnet.
+                "name": "fecha_carnet",
+                "regex": r"(?i)\b\d{1,2}\s?(?:ene|feb|mar|abr|may|jun|jul|ago|sep|oct|nov|dic)[a-z]*\s?\d{4}\b",
+                "score": 0.8
+            }
         ]
     },
     {
@@ -451,11 +479,43 @@ def analyze_text(text: str, entities: list[str] = None, language: str = "es", co
     try:
         res = _session.post(settings.PRESIDIO_URL, json=payload, timeout=60)
         if res.status_code == 200:
-            return res.json()
+            return _filter_boilerplate_person(res.json(), text)
         else:
             raise Exception(f"Presidio retornó status code {res.status_code}")
     except Exception as e:
         raise Exception(f"Error al analizar texto con Presidio: {str(e)}")
+
+
+# Palabras institucionales/de etiqueta que DetectorNombreMayusculas puede
+# confundir con un nombre real por tener la misma forma (todo en mayusculas).
+_BOILERPLATE_WORDS = {
+    "REPUBLICA", "CHILE", "SERVICIO", "REGISTRO", "CIVIL", "IDENTIFICACION",
+    "CEDULA", "IDENTIDAD", "ESPECIMEN", "NACIONALIDAD", "SEXO", "FECHA",
+    "NACIMIENTO", "EMISION", "VENCIMIENTO", "DOCUMENTO", "NUMERO", "FIRMA",
+    "TITULAR", "APELLIDOS", "NOMBRES", "CHILENA", "CHILENO", "RUN", "RUT",
+}
+
+
+def _strip_accents(value: str) -> str:
+    replacements = {"Á": "A", "É": "E", "Í": "I", "Ó": "O", "Ú": "U", "Ñ": "N"}
+    for k, v in replacements.items():
+        value = value.replace(k, v)
+    return value
+
+
+def _filter_boilerplate_person(results: list[dict], text: str) -> list[dict]:
+    """Descarta hallazgos PERSON cuyo texto sea puro boilerplate institucional
+    (ej. 'REPUBLICA DE CHILE'), que DetectorNombreMayusculas puede matchear al
+    tener la misma forma (secuencia de palabras en mayusculas) que un nombre real."""
+    filtered = []
+    for item in results:
+        if item.get("entity_type") == "PERSON":
+            matched = _strip_accents(text[item["start"]:item["end"]].upper())
+            words = matched.split()
+            if any(w in _BOILERPLATE_WORDS for w in words):
+                continue
+        filtered.append(item)
+    return filtered
 
 def check_health() -> bool:
     """Verifica si el servicio de Presidio Analyzer está operativo."""

@@ -190,7 +190,8 @@ def _analyze_row_batch(
 
                     findings_by_col[col_entry["col_name"]].append({
                         "entity_type": entity_type,
-                        "detected_text": crypto_service.encrypt(texto_original) if is_sensitive else texto_original,
+                        "detected_text": crypto_service.encrypt(texto_original) if is_sensitive else crypto_service.mask_text(texto_original, entity_type),
+                        "search_hash": crypto_service.compute_search_hash(texto_original, entity_type),
                         "confidence_score": h['score'],
                         "is_sensitive": is_sensitive
                     })
@@ -339,6 +340,7 @@ def scan_single_db_config(db_config: DbConfig, scan_job_id: int, local_db: Sessi
                                 file_name=f"{table_name} : {cell_result['col_name']} (ID:{futures[future]})",
                                 entity_type=hf["entity_type"],
                                 detected_text=hf["detected_text"],
+                                search_hash=hf.get("search_hash", ""),
                                 confidence_score=hf["confidence_score"],
                                 is_sensitive=hf["is_sensitive"],
                                 is_resolved=False,
