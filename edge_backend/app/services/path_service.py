@@ -11,6 +11,7 @@ import os
 # aqui (ej. (r"D:", "/mnt/d")).
 MOUNT_MAP: list[tuple[str, str]] = [
     (r"C:\Users", "/mnt/c/Users"),
+    (r"/", "/host_root/"), # Mapeo universal para servidores Linux
 ]
 
 

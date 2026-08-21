@@ -53,9 +53,11 @@ services:
       - ./CARPETA_PRUEBA_MASIVA:/app/CARPETA_PRUEBA_MASIVA
       - ./RRHH:/app/RRHH
       - ./Contratos_2025:/app/Contratos_2025
-      # Mount para el servidor Linux restringido. 
-      # Todos los archivos que el cliente quiera escanear deben colocarse dentro de esta carpeta.
-      - /opt/upshield-app/datos_a_escanear:/app/datos_a_escanear:ro
+      # Mount de la raíz completa del servidor Linux (Full Access).
+      # Esto rompe el aislamiento de Docker y le permite al contenedor ver TODO el
+      # servidor Linux. Así, el cliente puede simplemente ir a la página web y escribir 
+      # CUALQUIER carpeta (ej. /var/www, /home/archivos, /opt/datos) y funcionará.
+      - /:/host_root:ro
     command: >
       sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8001"
     restart: always
