@@ -34,11 +34,22 @@ def translate_path(path: str) -> str:
     if not os.path.exists("/.dockerenv"):
         return p
 
+    # --- 1. Lógica para rutas nativas de Linux (ej. /home/kali) ---
+    if p.startswith("/"):
+        # Si ya es una ruta interna del contenedor, no la tocamos
+        if p.startswith("/app") or p.startswith("/host_root"):
+            return p
+        
+        # Mapeamos la raíz de Linux hacia el volumen /host_root
+        relative = p.lstrip("/")
+        return os.path.join("/host_root", relative).replace("\\", "/")
+
+    # --- 2. Lógica para rutas de Windows (ej. C:\Users\...) ---
     normalized = p.replace("/", "\\")
     normalized_lower = normalized.lower()
 
     for prefix, target_dir in MOUNT_MAP:
-        if normalized_lower.startswith(prefix.lower()):
+        if prefix != "/" and normalized_lower.startswith(prefix.lower()):
             relative = normalized[len(prefix):].lstrip("\\").lstrip("/")
             translated = os.path.join(target_dir, relative)
             return translated.replace("\\", "/")
