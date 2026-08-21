@@ -22,9 +22,9 @@ AD_HOC_RECOGNIZERS = [
         "supported_entity": "CHILE_RUT",
         "supported_language": "es",
         "patterns": [
-            # El OCR suele agregar espacios fantasma, comas en vez de puntos, o separar
-            # el guión (ej: '19.456 . 789 - K'). Este regex es altamente tolerante al ruido.
-            {"name": "rut", "regex": r"\b\d{1,2}[\s,.]*\d{3}[\s,.]*\d{3}[\s.-]*[\dkK]\b", "score": 0.9}
+            # Se usa un regex estricto para evitar falsos positivos y corrupcion de DSAR.
+            # La validacion real (Modulo 11) deberia hacerse post-extraccion si se requiere 100% certeza.
+            {"name": "rut", "regex": r"\b\d{1,2}\.?\d{3}\.?\d{3}[\s.-][\dkK]\b", "score": 0.9}
         ]
     },
     {
