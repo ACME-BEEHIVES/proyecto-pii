@@ -22,9 +22,9 @@ AD_HOC_RECOGNIZERS = [
         "supported_entity": "CHILE_RUT",
         "supported_language": "es",
         "patterns": [
-            # El separador antes del digito verificador tolera '-', '.' o espacio
-            # porque el OCR de carnets suele confundir el guion con esos caracteres.
-            {"name": "rut", "regex": r"\b\d{1,2}\.?\d{3}\.?\d{3}[\s.-][\dkK]\b", "score": 0.9}
+            # El OCR suele agregar espacios fantasma, comas en vez de puntos, o separar
+            # el guión (ej: '19.456 . 789 - K'). Este regex es altamente tolerante al ruido.
+            {"name": "rut", "regex": r"\b\d{1,2}[\s,.]*\d{3}[\s,.]*\d{3}[\s.-]*[\dkK]\b", "score": 0.9}
         ]
     },
     {
