@@ -45,7 +45,7 @@ const FindingsPage: React.FC = () => {
   // Filters
   const [searchTerm, setSearchTerm] = useState('');
   const [entityFilter, setEntityFilter] = useState('');
-  const [statusFilter, setStatusFilter] = useState('active'); // active, resolved, all
+  const [statusFilter, setStatusFilter] = useState('all'); // active, resolved, all
   const [riskFilter, setRiskFilter] = useState('all'); // all, alto, moderado
 
   // Detail Drawer
