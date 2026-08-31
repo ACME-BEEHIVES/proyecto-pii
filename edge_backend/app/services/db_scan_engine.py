@@ -343,7 +343,9 @@ def scan_single_db_config(db_config: DbConfig, scan_job_id: int, local_db: Sessi
                                 search_hash=hf.get("search_hash", ""),
                                 confidence_score=hf["confidence_score"],
                                 is_sensitive=hf["is_sensitive"],
-                                is_resolved=False,
+                                is_resolved=True,
+                                resolved_at=datetime.utcnow(),
+                                resolution_method="Auto-mitigado",
                                 created_at=datetime.utcnow()
                             )
                             local_db.add(finding)

@@ -162,7 +162,9 @@ def process_file(file_path: str, scan_job_id: int, entities: list[str]):
                         search_hash=search_hash,
                         confidence_score=h['score'],
                         is_sensitive=is_sensitive,
-                        is_resolved=False,
+                        is_resolved=True,
+                        resolved_at=datetime.utcnow(),
+                        resolution_method="Auto-mitigado",
                         created_at=datetime.utcnow()
                     )
                     db.add(finding)
