@@ -25,13 +25,12 @@ def upgrade() -> None:
     if 'file_control' not in existing_tables:
         op.create_table('file_control',
         sa.Column('hash_ruta', sa.String(length=64), nullable=False),
-        sa.Column('file_path', sa.Text(), nullable=True),
+        sa.Column('file_path', sa.String(length=1024), nullable=True),
         sa.Column('content_hash', sa.String(length=64), nullable=True),
         sa.Column('last_scanned_at', sa.DateTime(), nullable=True),
         sa.PrimaryKeyConstraint('hash_ruta', name=op.f('pk_file_control'))
         )
         with op.batch_alter_table('file_control', schema=None) as batch_op:
-            batch_op.create_index(batch_op.f('ix_file_control_file_path'), ['file_path'], unique=False)
             batch_op.create_index(batch_op.f('ix_file_control_content_hash'), ['content_hash'], unique=False)
 
     if 'db_configs' not in existing_tables:
@@ -83,7 +82,7 @@ def upgrade() -> None:
         op.create_table('scan_findings',
         sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
         sa.Column('scan_job_id', sa.Integer(), nullable=True),
-        sa.Column('file_path', sa.Text(), nullable=True),
+        sa.Column('file_path', sa.String(length=1024), nullable=True),
         sa.Column('file_name', sa.String(length=255), nullable=True),
         sa.Column('entity_type', sa.String(length=50), nullable=True),
         sa.Column('detected_text', sa.Text(), nullable=True),
@@ -100,7 +99,6 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint('id', name=op.f('pk_scan_findings'))
         )
         with op.batch_alter_table('scan_findings', schema=None) as batch_op:
-            batch_op.create_index(batch_op.f('ix_scan_findings_file_path'), ['file_path'], unique=False)
             batch_op.create_index(batch_op.f('ix_scan_findings_is_resolved'), ['is_resolved'], unique=False)
             batch_op.create_index(batch_op.f('ix_scan_findings_is_sensitive'), ['is_sensitive'], unique=False)
             batch_op.create_index(batch_op.f('ix_scan_findings_scan_job_id'), ['scan_job_id'], unique=False)
