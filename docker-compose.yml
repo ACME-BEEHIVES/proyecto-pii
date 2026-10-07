@@ -84,7 +84,7 @@ services:
       # CUALQUIER carpeta (ej. /var/www, /home/archivos, /opt/datos) y funcionará.
       - /:/host_root:ro
     command: >
-      sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8001"
+      sh -c "alembic upgrade head || alembic stamp head; uvicorn app.main:app --host 0.0.0.0 --port 8001"
     restart: always
 
   edge-frontend:
