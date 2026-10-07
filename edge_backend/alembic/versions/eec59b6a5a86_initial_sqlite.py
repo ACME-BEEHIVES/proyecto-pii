@@ -25,7 +25,7 @@ def upgrade() -> None:
     if 'control_archivos' not in existing_tables:
         op.create_table('control_archivos',
         sa.Column('hash_ruta', sa.String(length=64), nullable=False),
-        sa.Column('archivo_nombre', sa.String(length=1024), nullable=True),
+        sa.Column('archivo_nombre', sa.String(length=750), nullable=True),
         sa.Column('hash_archivo', sa.String(length=64), nullable=True),
         sa.Column('ultima_actualizacion', sa.DateTime(), nullable=True),
         sa.PrimaryKeyConstraint('hash_ruta', name=op.f('pk_control_archivos'))
@@ -83,7 +83,7 @@ def upgrade() -> None:
         op.create_table('hallazgos',
         sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
         sa.Column('scan_job_id', sa.Integer(), nullable=True),
-        sa.Column('archivo_nombre', sa.String(length=1024), nullable=True),
+        sa.Column('archivo_nombre', sa.String(length=750), nullable=True),
         sa.Column('file_name', sa.String(length=255), nullable=True),
         sa.Column('tipo_entidad', sa.String(length=50), nullable=True),
         sa.Column('texto_detectado', sa.Text(), nullable=True),
