@@ -8,7 +8,7 @@ class ScanFinding(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     scan_job_id = Column(Integer, ForeignKey("scan_jobs.id"), nullable=True, index=True)
-    file_path = Column("archivo_nombre", Text, nullable=True, index=True)
+    file_path = Column("archivo_nombre", String(1024), nullable=True, index=True)
     file_name = Column(String(255), nullable=True)
     entity_type = Column("tipo_entidad", String(50), nullable=True, index=True)
     detected_text = Column("texto_detectado", Text, nullable=True)
