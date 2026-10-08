@@ -12,7 +12,14 @@ pydantic-settings==2.5.0
 python-multipart==0.0.9
 pymupdf>=1.24.0
 pillow>=10.0.0
-pytesseract>=0.3.10
+# PaddleOCR - reemplaza Tesseract + Tika para PDF/imágenes
+paddleocr>=2.7.0
+# Extracción nativa de Office sin Tika
+python-docx>=1.1.0
+openpyxl>=3.1.0
+xlrd>=2.0.1
+odfpy>=1.4.1
+# Bases de datos externas
 psycopg2-binary==2.9.9
 pymssql==2.3.0
 watchdog==4.0.1

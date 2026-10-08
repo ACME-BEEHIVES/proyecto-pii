@@ -13,7 +13,7 @@ settings = get_settings()
 def get_health_status(db: Session = Depends(get_db)):
     """Verifica el estado general de salud del agente y todos sus servicios dependientes."""
     services = {}
-    
+
     # 1. Database health check
     db_ok = False
     try:
@@ -22,21 +22,21 @@ def get_health_status(db: Session = Depends(get_db)):
         services["database"] = ServiceHealthStatus(status="healthy")
     except Exception as e:
         services["database"] = ServiceHealthStatus(status="unhealthy", message=str(e))
-        
-    # 2. Tika health check
-    tika_ok = tika_service.check_health()
-    services["tika"] = ServiceHealthStatus(
-        status="healthy" if tika_ok else "unhealthy",
-        message=None if tika_ok else "No hay respuesta de Apache Tika en el puerto 9998"
+
+    # 2. OCR Engine (PaddleOCR — reemplaza Apache Tika)
+    ocr_ok = tika_service.check_health()
+    services["ocr_engine"] = ServiceHealthStatus(
+        status="healthy" if ocr_ok else "unhealthy",
+        message=None if ocr_ok else "PaddleOCR no está disponible. Verifica la instalación."
     )
-    
+
     # 3. Presidio health check
     presidio_ok = presidio_service.check_health()
     services["presidio"] = ServiceHealthStatus(
         status="healthy" if presidio_ok else "unhealthy",
         message=None if presidio_ok else "No hay respuesta de Microsoft Presidio en el puerto 5001"
     )
-    
+
     # 4. Realtime Watcher health check
     watcher_status = "unhealthy"
     watcher_msg = "Monitoreo en tiempo real inactivo"
@@ -51,16 +51,16 @@ def get_health_status(db: Session = Depends(get_db)):
                 watcher_msg = "Activo (Esperando configuración de carpetas)"
     except Exception as e:
         watcher_msg = f"Error al verificar watcher: {str(e)}"
-        
+
     services["watcher"] = ServiceHealthStatus(
         status=watcher_status,
         message=watcher_msg
     )
-    
+
     # Determinar el estado general
-    all_ok = db_ok and tika_ok and presidio_ok and (watcher_status == "healthy")
+    all_ok = db_ok and ocr_ok and presidio_ok and (watcher_status == "healthy")
     status = "ok" if all_ok else ("degraded" if db_ok else "error")
-    
+
     return HealthResponse(
         status=status,
         service="upshield-edge-agent",
@@ -69,17 +69,27 @@ def get_health_status(db: Session = Depends(get_db)):
         services=services
     )
 
+
+@router.get("/ocr")
+def get_ocr_health():
+    """Verifica si el motor PaddleOCR está operativo."""
+    ok = tika_service.check_health()
+    return {"status": "healthy" if ok else "unhealthy", "engine": "PaddleOCR"}
+
+
 @router.get("/tika")
 def get_tika_health():
-    """Verifica si Apache Tika está operativo."""
+    """Alias de compatibilidad → ahora apunta al motor PaddleOCR."""
     ok = tika_service.check_health()
-    return {"status": "healthy" if ok else "unhealthy"}
+    return {"status": "healthy" if ok else "unhealthy", "engine": "PaddleOCR (reemplazó a Tika)"}
+
 
 @router.get("/presidio")
 def get_presidio_health():
     """Verifica si Microsoft Presidio está operativo."""
     ok = presidio_service.check_health()
     return {"status": "healthy" if ok else "unhealthy"}
+
 
 @router.get("/database")
 def get_database_health(db: Session = Depends(get_db)):
