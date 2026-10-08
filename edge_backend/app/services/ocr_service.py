@@ -207,11 +207,12 @@ def extract_text(file_path: str) -> str:
 
 def check_health() -> bool:
     """
-    Verifica que el motor de OCR está operativo intentando inicializar PaddleOCR.
-    Retorna True si está listo, False si hay algún problema.
+    Verifica que el motor de OCR está operativo verificando que la librería
+    está instalada. No inicializa los modelos para no bloquear el health check.
     """
     try:
-        _get_paddle()
+        import paddleocr  # noqa: F401
+        import fitz       # noqa: F401
         return True
-    except Exception:
+    except ImportError:
         return False

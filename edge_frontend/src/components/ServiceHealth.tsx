@@ -87,8 +87,9 @@ const ServiceHealth: React.FC = () => {
   const dbStatus = health?.services?.database?.status || 'unhealthy';
   const dbMsg = health?.services?.database?.message || null;
 
-  const tikaStatus = health?.services?.tika?.status || 'unhealthy';
-  const tikaMsg = health?.services?.tika?.message || null;
+  // Soporte dual: lee 'ocr_engine' (nuevo PaddleOCR) o 'tika' (legado) para compatibilidad
+  const tikaStatus = health?.services?.ocr_engine?.status || health?.services?.tika?.status || 'unhealthy';
+  const tikaMsg = health?.services?.ocr_engine?.message || health?.services?.tika?.message || null;
 
   const presidioStatus = health?.services?.presidio?.status || 'unhealthy';
   const presidioMsg = health?.services?.presidio?.message || null;
@@ -119,7 +120,7 @@ const ServiceHealth: React.FC = () => {
       )}
 
       {renderService(
-        'Apache Tika (Text)',
+        'Motor OCR (PaddleOCR)',
         tikaStatus,
         <ReceiptLongIcon sx={{ color: '#CED4DA', fontSize: 16 }} />,
         tikaMsg
