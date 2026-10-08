@@ -68,7 +68,8 @@ export interface HealthResponse {
   environment: string;
   services: {
     database: ServiceHealthStatus;
-    tika: ServiceHealthStatus;
+    tika?: ServiceHealthStatus;
+    ocr_engine?: ServiceHealthStatus;
     presidio: ServiceHealthStatus;
     watcher: ServiceHealthStatus;
   };
