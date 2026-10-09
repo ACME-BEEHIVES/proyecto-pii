@@ -7,8 +7,11 @@ recognizers:
     supported_entity: "CHILE_RUT"
     patterns:
       - name: "rut"
-        # Regex mejorado para tolerar errores comunes de OCR (espacios, guiones largos, sin puntos)
-        regex: '\b(\d{1,2}(?:\s*\.?\s*\d{3}){2}\s*[-—_]\s*[\dkK])\b'
+        # Regex ultra flexible para carnets escaneados: 
+        # 1. Sin \b (para tolerar si el OCR junta "RUN80.000...")
+        # 2. Acepta 'l' o 'I' porque el OCR suele confundir el número 1 del RUT con letras.
+        # 3. Acepta comas en vez de puntos.
+        regex: '(?<!\d)\d{1,2}(?:\s*[\.,]?\s*\d{3}){2}\s*[-—_]\s*[\dkKlLiI](?!\d)'
         score: 0.8
 
 # =====================================================================
