@@ -32,7 +32,6 @@ def _get_paddle():
                 use_angle_cls=True,   # Detecta texto rotado (carnets, escaneos torcidos)
                 lang="es",            # Español como idioma principal
                 use_gpu=False,        # CPU-only (on-premise sin GPU)
-                show_log=False,       # Sin spam en los logs
                 enable_mkldnn=True,   # Aceleración Intel MKL-DNN (más rápido en CPUs modernas)
             )
             logger.info("PaddleOCR listo.")
