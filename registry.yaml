@@ -7,7 +7,8 @@ recognizers:
     supported_entity: "CHILE_RUT"
     patterns:
       - name: "rut"
-        regex: '\b(\d{1,2}(?:\.?\d{3}){2}-[\dkK])\b'
+        # Regex mejorado para tolerar errores comunes de OCR (espacios, guiones largos, sin puntos)
+        regex: '\b(\d{1,2}(?:\s*\.?\s*\d{3}){2}\s*[-—_]\s*[\dkK])\b'
         score: 0.8
 
 # =====================================================================
